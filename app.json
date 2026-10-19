@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "知行行情",
+    "slug": "zhixing-markets",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#f6f8f9",
+    "icon": "./assets/icon.png",
+    "platforms": ["android", "web"],
+    "android": {
+      "package": "com.zhixing.markets",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#087f70"
+      },
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.VIBRATE",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/icon.png",
+      "name": "知行行情 · A股与港股",
+      "shortName": "知行行情",
+      "themeColor": "#087f70",
+      "backgroundColor": "#f6f8f9"
+    },
+    "plugins": [],
+    "extra": {
+      "description": "A股、港股、ETF与公募REITs移动行情"
+    }
+  }
+}
