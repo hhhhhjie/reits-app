@@ -1,11 +1,15 @@
-# 知行行情 Android 测试包
+# 知行行情 Android v1.1.0
 
-[下载 APK](https://raw.githubusercontent.com/hhhhhjie/reits-app/android-preview/zhixing-android-preview.apk) · [下载 ZIP](https://raw.githubusercontent.com/hhhhhjie/reits-app/android-preview/zhixing-android-preview.zip) · [源码](https://github.com/hhhhhjie/reits-app/tree/main)
+[下载新版 APK](https://raw.githubusercontent.com/hhhhhjie/reits-app/android-preview/zhixing-android-v1.1.0.apk) · [备用 ZIP](https://raw.githubusercontent.com/hhhhhjie/reits-app/android-preview/zhixing-android-v1.1.0.zip) · [源码与说明](https://github.com/hhhhhjie/reits-app/tree/main)
 
-版本 1.0.0，Android 7.0 及以上，ARM64，约 23 MB。使用手机系统浏览器下载，允许该浏览器安装未知应用，然后打开 APK 安装。ZIP 内包含同一个 APK 和中文安装说明。
+约23 MB，Android 7.0及以上ARM64手机。同一开发签名、versionCode 2，可覆盖上一版以保留本机自选。手机浏览器下载后允许安装未知应用，打开APK安装。
 
-默认 HTTPS 直连公开行情，无需配置服务器。包含自选、A股及港股行情、数据分类、搜索与日 K 线。公开行情可能延迟，源不可用时明确显示缓存或演示状态。
+新增沪深可转债和公募REITs完整名单、全局搜索/排序/分页。2026-10-19验证308只转债、88只REITs，均有真实报价；88只REITs均有披露净值和近12月现金分红记录统计。名单动态更新，不固定数量。
 
-这是用于初步试用的开发签名包，已完成构建、签名、文件校验和资源检查，尚未进行真机安装测试。
+转债支持自动转股价、转股价值、转股溢价、双低、评级、发行规模、剩余期限、税前到期收益率估算及赎回公告信息。REITs支持单位/累计净值、净值日期和折溢价、近12月现金分红及历史现金分派率。
 
-SHA-256 见 SHA256SUMS；验证记录见 zhixing-android-preview.verification.json。
+缺失数据留空，演示和缓存有明确标记。净值不是IOPV，历史分派率不是未来收益；发行规模不是剩余规模，尚无强赎15/30日计数。
+
+32项接口与计算测试、16项手机/桌面交互测试通过，APK签名、版本、CRC、内置Hermes资源与16KB打包对齐校验通过。尚未真机安装验证。
+
+查看 SHA256SUMS 核对下载文件；ZIP内含同一个APK、安装说明和验证记录。
