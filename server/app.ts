@@ -2,7 +2,14 @@ import express from 'express';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { CATALOG, validSymbol } from '../shared/catalog';
-import { getHistory, getIPOs, getQuotes, searchInstruments } from './provider';
+import {
+  getHistory,
+  getIPOs,
+  getQuotes,
+  searchInstruments,
+  getUniverse,
+  getReitMetrics,
+} from './provider';
 
 export function createApp() {
   const app = express();
@@ -40,6 +47,28 @@ export function createApp() {
     }),
   );
   app.get('/api/catalog', (_req, res) => res.json({ instruments: CATALOG }));
+  app.get('/api/universe/:kind', async (req, res) => {
+    if (req.params.kind !== 'bond' && req.params.kind !== 'reit') {
+      res.status(400).json({ error: '仅支持沪深可转债或REITs。' });
+      return;
+    }
+    try {
+      res.json(await getUniverse(req.params.kind));
+    } catch {
+      res.status(502).json({ error: '全市场目录暂不可用。' });
+    }
+  });
+  app.get('/api/reit/:symbol', async (req, res) => {
+    if (!/^(sh508\d{3}|sz180\d{3})$/.test(req.params.symbol)) {
+      res.status(400).json({ error: 'REITs代码格式有误。' });
+      return;
+    }
+    try {
+      res.json(await getReitMetrics(req.params.symbol));
+    } catch {
+      res.status(502).json({ error: '净值及分红暂不可用。' });
+    }
+  });
   app.get('/api/ipo', async (_req, res) => {
     try {
       res.json(await getIPOs());

@@ -17,11 +17,12 @@ import {
   Star,
 } from 'lucide-react-native';
 import { AH_PAIRS, CATALOG, MODULES } from '../shared/catalog';
-import type { DataModule, Quote } from '../shared/types';
+import type { DataModule, Quote, UniverseKind, UniverseResponse } from '../shared/types';
 import { bondValuation } from '../shared/valuation';
 import { C, compact, percent, price } from './theme';
 import { Button, EmptyState, Notice, Panel } from './components';
 import IPOPanel from './IPOPanel';
+import UniverseTable from './UniverseTable';
 
 const MODULE_ICONS = {
   bond: Coins,
@@ -75,6 +76,11 @@ export default function DataScreen({
   onToggle,
   onSearch,
   loading,
+  universes,
+  universeLoading,
+  onRefresh,
+  endpoint,
+  onPageChange,
 }: {
   quotes: Record<string, Quote>;
   watchlist: string[];
@@ -83,6 +89,11 @@ export default function DataScreen({
   onToggle: (symbol: string) => void;
   onSearch: () => void;
   loading: boolean;
+  universes: Partial<Record<UniverseKind, UniverseResponse>>;
+  universeLoading: boolean;
+  onRefresh: () => void;
+  endpoint: string;
+  onPageChange: () => void;
 }) {
   const [module, setModule] = useState<DataModule>('bond');
   const compactLayout = useWindowDimensions().width < 700;
@@ -193,10 +204,12 @@ export default function DataScreen({
         <Notice
           text={
             module === 'bond'
-              ? '双低值＝转债价格＋转股溢价率的百分数值。转股价需在转债详情中手动填写并核对公告；未填写时不计算。'
+              ? '转债已支持自动读取转股价、转股价值、溢价与双低值；也可在详情修正。税前YTM为合同现金流估算，详细口径见表格“指标口径”。'
               : module === 'ah'
                 ? 'A股以人民币报价，H股以港元报价。原币价比未计入汇率、交易成本与税费，不等于A/H溢价率。'
-                : '涨跌幅以昨收计算；成交额为行情源口径。净值、折溢价、分派率需额外数据源，未接入时以“—”表示。'
+                : module === 'reit'
+                  ? '沪深公募REITs完整名单；净值与分红按披露日期展示。历史现金分派率按已取得的近12月分红记录计算，不代表未来收益。'
+                  : '涨跌幅以昨收计算；成交额为行情源口径。缺失指标以“—”表示。'
           }
         />
       )}
@@ -204,6 +217,21 @@ export default function DataScreen({
         <AHTable quotes={quotes} onOpen={onOpen} />
       ) : module === 'ipo' ? (
         <IPOPanel />
+      ) : module === 'bond' || module === 'reit' ? (
+        <UniverseTable
+          key={module}
+          kind={module}
+          data={universes[module]}
+          quotes={quotes}
+          conversions={conversions}
+          watchlist={watchlist}
+          onOpen={onOpen}
+          onToggle={onToggle}
+          onRefresh={onRefresh}
+          loading={universeLoading}
+          endpoint={endpoint}
+          onPageChange={onPageChange}
+        />
       ) : (
         <Panel>
           <View style={s.tableTitle}>
@@ -250,7 +278,7 @@ export default function DataScreen({
             showsHorizontalScrollIndicator
             contentContainerStyle={{ minWidth: '100%' }}
           >
-            <View style={{ flex: 1, minWidth: module === 'bond' ? 620 : 540 }}>
+            <View style={{ flex: 1, minWidth: 540 }}>
               <View style={s.tableHeader}>
                 <Text style={[s.columnName, s.tableHeaderText]}>名称 / 代码</Text>
                 {COLUMNS[module].map((col) => (
@@ -377,12 +405,6 @@ export default function DataScreen({
             </Pressable>
           </View>
         </Panel>
-      )}
-      {module === 'bond' && (
-        <Notice text="转股溢价和双低值需填写当前有效转股价。点开转债详情设置；到期收益率、强赎状态尚未接入。" />
-      )}
-      {module === 'reit' && (
-        <Notice text="REITs 分派率与资产净值尚未接入，不能由场内价格推算。请结合基金最新公告核对。" />
       )}
       {(module === 'etf' || module === 'lof') && (
         <Notice text="此处为场内交易行情。基金净值、IOPV及折溢价数据尚未接入。" />

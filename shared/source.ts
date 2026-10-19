@@ -2,6 +2,7 @@ import { CATALOG, searchCatalog, validSymbol } from './catalog';
 import type { HistoryResponse, Instrument, IPOResponse, Quote, QuoteResponse } from './types';
 import { demoHistory, demoQuote } from './demo';
 import { parseHistory, parseIPOs, parseQuotes, parseSearch } from './parsers';
+import { createUniverseSource } from './universe';
 
 export type TextTransport = (url: string, encoding?: string) => Promise<string>;
 export function createMarketSource(request: TextTransport, isDemo: () => boolean = () => false) {
@@ -168,5 +169,5 @@ export function createMarketSource(request: TextTransport, isDemo: () => boolean
     }
   }
 
-  return { getQuotes, getHistory, searchInstruments, getIPOs };
+  return { getQuotes, getHistory, searchInstruments, getIPOs, ...createUniverseSource(request, getQuotes, isDemo) };
 }

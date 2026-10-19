@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
-import { CATALOG, DEFAULT_WATCHLIST, validSymbol } from '../shared/catalog';
-import type { QuoteResponse } from '../shared/types';
+import { CATALOG, DEFAULT_WATCHLIST, validSymbol, registerInstruments } from '../shared/catalog';
+import type { QuoteResponse, UniverseKind, UniverseResponse } from '../shared/types';
 import { api, setApiUrl } from './api';
 import { demoQuote } from '../shared/demo';
 
@@ -147,4 +147,67 @@ export function useMarket(watchlist: string[], ready: boolean, endpoint: string)
     };
   }, [symbolKey, ready, endpoint]);
   return { data, error, loading, refresh: () => refreshRef.current() };
+}
+
+export function useFullMarkets(ready: boolean, endpoint: string) {
+  const [data, setData] = useState<Partial<Record<UniverseKind, UniverseResponse>>>({});
+  const [loading, setLoading] = useState(false);
+  const refreshRef = useRef<() => Promise<void>>(async () => {});
+  useEffect(() => {
+    if (!ready) return;
+    let active = true,
+      busy = false;
+    setData({});
+    async function refresh() {
+      if (busy) return;
+      busy = true;
+      setLoading(true);
+      await Promise.allSettled(
+        (['bond', 'reit'] as const).map(async (kind) => {
+          try {
+            const result = await api.universe(kind);
+            if (!active) return;
+            registerInstruments(result.items);
+            setData((previous) => ({ ...previous, [kind]: result }));
+          } catch {
+            if (active)
+              setData((previous) => {
+                const saved = previous[kind];
+                return saved
+                  ? {
+                      ...previous,
+                      [kind]: {
+                        ...saved,
+                        mode: saved.mode === 'demo' ? 'demo' : 'cached',
+                        complete: false,
+                        message: '更新失败，保留上次目录与行情。',
+                      },
+                    }
+                  : previous;
+              });
+          }
+        }),
+      );
+      busy = false;
+      if (active) setLoading(false);
+    }
+    refreshRef.current = refresh;
+    void refresh();
+    const timer = setInterval(() => {
+      if (
+        AppState.currentState === 'active' &&
+        (typeof document === 'undefined' || document.visibilityState !== 'hidden')
+      )
+        void refresh();
+    }, 60_000);
+    const listener = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refresh();
+    });
+    return () => {
+      active = false;
+      clearInterval(timer);
+      listener.remove();
+    };
+  }, [ready, endpoint]);
+  return { data, loading, refresh: () => refreshRef.current() };
 }

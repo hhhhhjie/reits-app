@@ -71,6 +71,11 @@ export const CATALOG: Instrument[] = [
   item('sh113053', '隆22转债', 'bond', 'longji lj', 'sh601012'),
 ];
 
+const discovered = new Map<string, Instrument>();
+export function registerInstruments(items: Instrument[]) {
+  for (const instrument of items) discovered.set(instrument.symbol, instrument);
+}
+
 export const INDICES = CATALOG.filter((x) => x.type === 'index');
 export const DEFAULT_WATCHLIST = ['hk00700', 'sh600519', 'sz300750', 'sh510300', 'sh508056'];
 export const AH_PAIRS = [
@@ -81,10 +86,10 @@ export const AH_PAIRS = [
 ];
 export const MODULES: { key: import('./types').DataModule; label: string; description: string }[] =
   [
-    { key: 'bond', label: '可转债', description: '转债行情与价格筛选' },
+    { key: 'bond', label: '可转债', description: '全市场转债与自动估值' },
     { key: 'etf', label: 'ETF', description: '场内指数基金行情' },
     { key: 'lof', label: 'LOF', description: '上市开放式基金行情' },
-    { key: 'reit', label: 'REITs', description: '公募基础设施基金行情' },
+    { key: 'reit', label: 'REITs', description: '沪深公募REITs与净值分派' },
     { key: 'ah', label: 'A/H比价', description: '同一公司两地价格对照' },
     { key: 'ipo', label: '新股', description: '发行、申购与上市日历' },
   ];
@@ -103,6 +108,7 @@ export function inferType(symbol: string): Instrument['type'] {
 
 export function findInstrument(symbol: string, name?: string): Instrument {
   return (
+    discovered.get(symbol) ??
     CATALOG.find((x) => x.symbol === symbol) ??
     item(symbol, name || symbol.slice(2), inferType(symbol))
   );
@@ -111,7 +117,9 @@ export function findInstrument(symbol: string, name?: string): Instrument {
 export function searchCatalog(query: string): Instrument[] {
   const value = query.toLowerCase().trim();
   if (!value) return [];
-  return CATALOG.filter((x) =>
-    `${x.name} ${x.code} ${x.symbol} ${x.keywords || ''}`.toLowerCase().includes(value),
-  ).slice(0, 30);
+  return [...new Map([...CATALOG, ...discovered.values()].map((x) => [x.symbol, x])).values()]
+    .filter((x) =>
+      `${x.name} ${x.code} ${x.symbol} ${x.keywords || ''}`.toLowerCase().includes(value),
+    )
+    .slice(0, 30);
 }

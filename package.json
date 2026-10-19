@@ -1,6 +1,6 @@
 {
   "name": "zhixing-markets",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "main": "index.ts",
   "scripts": {
@@ -19,7 +19,8 @@
     "build:apk:local": "bash scripts/build-apk.sh",
     "prebuild:android": "node scripts/expo.cjs prebuild --platform android --no-install",
     "test:live": "tsx scripts/check-live.ts",
-    "test:android-data": "tsx scripts/check-android-data.ts"
+    "test:android-data": "tsx scripts/check-android-data.ts",
+    "test:universe": "tsx scripts/check-universe.ts"
   },
   "dependencies": {
     "@kayahr/text-encoding": "^2.2.0",

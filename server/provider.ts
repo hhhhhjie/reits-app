@@ -13,7 +13,5 @@ async function request(url: string, encoding = 'gb18030'): Promise<string> {
   return new TextDecoder(encoding).decode(buffer);
 }
 
-export const { getQuotes, getHistory, searchInstruments, getIPOs } = createMarketSource(
-  request,
-  () => process.env.MARKET_DATA_MODE === 'demo',
-);
+export const { getQuotes, getHistory, searchInstruments, getIPOs, getUniverse, getReitMetrics } =
+  createMarketSource(request, () => process.env.MARKET_DATA_MODE === 'demo');

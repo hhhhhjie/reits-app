@@ -72,3 +72,19 @@ test('演示模式不伪造新股申购信息', async () => {
   assert.equal(body.available, false);
   assert.deepEqual(body.items, []);
 });
+
+test('全市场及REITs指标接口校验类型，演示样本不冒充完整名单', async () => {
+  const response = await fetch(`${base}/api/universe/bond`);
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.kind, 'bond');
+  assert.equal(data.complete, false);
+  assert.equal(data.total, null);
+  assert.equal(data.mode, 'demo');
+  assert.match(data.message, /不能代表全市场/);
+  assert.equal((await fetch(`${base}/api/universe/stock`)).status, 400);
+  assert.equal((await fetch(`${base}/api/reit/sh600519`)).status, 400);
+  const metrics = await (await fetch(`${base}/api/reit/sh508056`)).json();
+  assert.equal(metrics.available, false);
+  assert.equal(metrics.metrics, null);
+});

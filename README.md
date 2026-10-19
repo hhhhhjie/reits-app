@@ -4,27 +4,31 @@
 
 ## 下载 Android 测试包
 
-- [下载 APK](https://raw.githubusercontent.com/hhhhhjie/reits-app/android-preview/zhixing-android-preview.apk)
-- [下载 ZIP（含 APK、安装说明和校验记录）](https://raw.githubusercontent.com/hhhhhjie/reits-app/android-preview/zhixing-android-preview.zip)
+- [下载 v1.1.0 APK](https://raw.githubusercontent.com/hhhhhjie/reits-app/android-preview/zhixing-android-v1.1.0.apk)
+- [下载 v1.1.0 ZIP（含 APK、安装说明和校验记录）](https://raw.githubusercontent.com/hhhhhjie/reits-app/android-preview/zhixing-android-v1.1.0.zip)
 - [下载文件目录](https://github.com/hhhhhjie/reits-app/tree/android-preview)
 
-当前版本 1.0.0，约 23 MB，支持 Android 7.0 及以上 ARM64 手机。使用手机浏览器下载后，允许该浏览器安装未知应用，再打开 APK 安装。测试包使用开发签名，尚未进行真机验证；首次启动默认直连公开行情源。下载如被聊天软件内置浏览器拦截，请复制链接到系统浏览器打开。
+当前版本 1.1.0（versionCode 2），约 23 MB，支持 Android 7.0 及以上 ARM64 手机。使用手机浏览器下载后，允许该浏览器安装未知应用，再打开 APK 安装；可覆盖安装上一版以保留自选。测试包使用同一开发签名，尚未进行真机验证。首次启动默认直连公开行情源，完整目录首次加载需要一些时间。下载如被聊天软件内置浏览器拦截，请复制链接到系统浏览器打开。
 
-APK SHA-256：`5a0b2fa3f600603fbcf4ec4097ca9b8f9ae3f044212ae2eafed0c6f53a036a81`。文件位于独立的 `android-preview` 分支，源码保留在 `main` 分支。
+文件与 SHA-256 校验记录位于独立的 `android-preview` 分支，源码保留在 `main` 分支。固定版本文件名可避免浏览器继续使用上一版缓存。
 
 ## 已实现
 
 - 「数据」标签：可转债、ETF、LOF、REITs、A/H 比价、新股。
 - 沪深 A 股与港股查询，支持名称、代码、拼音搜索，以及目录外证券远端搜索。
-- 前台每 15 秒刷新，服务端 10 秒缓存；保留报价原始时间、币种、来源，红涨绿跌。
+- 常用及自选行情前台每 15 秒刷新，全市场数据表每 60 秒刷新；保留报价原始时间、币种、来源，红涨绿跌。
+- 沪深可转债完整分页目录，自动排除未上市、已退市及可交换债，超过150只自动分批查询；REITs 完整分页目录并提供完整 `508xxx` / `180xxx` 代码段核验备用源。任何一页失败都不会把部分名单标为完整。
+- 全市场名称、代码、正股搜索，沪深市场与价格/双低/自选筛选，先对全部品种排序、再每页显示25只；缺报价的证券仍保留在名单中。
 - 自选增删与本机持久保存，行情排序、涨跌及价格筛选。
 - 证券详情、30/60/90 日历史折线和日 K 线。
-- 填写并保存当前有效转股价后，结合正股行情计算转股价值、转股溢价和双低值。
+- 自动同步转股价及正股，计算转股价值、转股溢价和双低；本机修正值优先，清空后恢复数据源参数。
+- 转债评级、发行规模、剩余年限、到期日、到期赎回价、强赎/回售触发价、赎回公告及日期；税前到期收益率按未来合同现金流估算，末期利息不重复计入，缺条款或存在赎回公告时不计算。
+- REITs 交易额、换手率、振幅、市值，独立披露的单位/累计净值、净值日期及折溢价；现金分红明细按每份换算并核对近12月覆盖，计算历史现金分派率，保留最新分红记录日。
 - A/H 两地原币价格对照，明确标注 CNY/HKD，不把未换汇的原币价比称为溢价率。
 - 新股日历独立数据适配器及交易所公告入口。源不可达时不编造申购信息。
 - 行情服务不可达时可离线演示；演示报价使用固定的 2025-03-14 样本并明确标注，不会伪装为实时价格。
 
-默认目录为精选品种，并非全市场排名。远端搜索可扩展到目录以外的沪深和港股证券。港股公开报价可能延迟；休市或源端未更新时，保留上个报价日期。
+沪深可转债和公募 REITs 为动态完整目录，不硬编码品种数量。2026-10-19 实测分别取得308只和88只，均有真实报价，88只REITs取得披露净值。ETF、LOF、普通股票及A/H配对仍为精选目录，远端搜索可扩展到目录外证券。港股公开报价可能延迟；休市或源端未更新时保留上个报价日期。演示或缓存有独立标记，部分名单不会标为全市场。
 
 ## 本地开发
 
@@ -92,10 +96,13 @@ Node 服务同时提供行情 API 和用于开发验证的网页界面；Android
 | `GET /api/history/sh600519`                | 历史日线与数据模式                 |
 | `GET /api/search?q=txkg`                   | 本地目录和远端证券搜索             |
 | `GET /api/ipo`                             | 新股发行日历及可用状态             |
+| `GET /api/universe/bond` | 沪深上市可转债完整目录、条款及批量报价 |
+| `GET /api/universe/reit` | 沪深公募 REITs 完整目录、报价及披露净值 |
+| `GET /api/reit/:symbol` | 披露净值及近12月现金分红明细统计 |
 
 服务端 `MARKET_DATA_MODE=demo` 可强制演示。客户端只注入 `EXPO_PUBLIC_*` 变量，不注入服务端配置。生产环境可设置 `ALLOWED_ORIGIN` 限定网页跨域来源。报价请求限制为每 IP 每分钟 180 次。
 
-所需出站域名：`qt.gtimg.cn`、`web.ifzq.gtimg.cn`、`smartbox.gtimg.cn`、`datacenter-web.eastmoney.com`。服务使用环境现有的 HTTP(S) 代理与 CA 信任，不关闭 TLS 验证。
+所需出站域名：`qt.gtimg.cn`、`web.ifzq.gtimg.cn`、`smartbox.gtimg.cn`、`datacenter-web.eastmoney.com`、`fund.eastmoney.com`；REITs 首选目录另使用 `95.push2.eastmoney.com`，不可达时自动改用腾讯完整代码段核验。服务使用环境现有的 HTTP(S) 代理与 CA 信任，不关闭 TLS 验证。
 
 ## 检查
 
@@ -109,15 +116,16 @@ npm run build:native
 npm run test:live
 # 使用 Android 同一套 fetch 和 GB18030 解码适配器验证真实数据
 npm run test:android-data
+npm run test:universe -- --all-funds
 ```
 
 浏览器测试覆盖手机尺寸交互和网页联调，不等同于 Android 真机测试。没有系统 Chromium 时先运行 `npx playwright install chromium`。
 
 ## 尚未覆盖
 
-- 基金净值、IOPV、基金折溢价、REITs 分派率、转债到期收益率与强赎状态。
-- 自动同步转股价公告；目前参数由用户核对公告后填写。
+- ETF/LOF 的净值及IOPV、预期REITs分派率与资产评估价值；当前 REITs 折溢价以已披露账面净值为基准，历史现金分派率只使用已核对的分红记录。
+- 可转债剩余规模、强赎15/30日触发计数及“不强赎承诺期”；目前展示源端现行转股价、触发价和赎回公告日期。合同现金流YTM为税前估算，不含提前赎回、违约、税费或交易成本。
 - 汇率换算后的 A/H 溢价、北交所报价、账户云同步、交易下单与推送提醒。
 - 新股日历依赖东方财富数据源可达性；官方公告链接始终保留。
 
-这些指标在界面中明确显示缺失，不从价格推测或填入随机值。
+缺失指标在界面中显示“—”，不从价格推测或填入随机值。净值可能滞后，详情中保留净值与分红记录的独立日期。

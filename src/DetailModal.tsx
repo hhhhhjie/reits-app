@@ -11,7 +11,14 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, ArrowUpRight, RefreshCw, Star } from 'lucide-react-native';
-import type { DataMode, HistoryResponse, Quote } from '../shared/types';
+import type {
+  DataMode,
+  HistoryResponse,
+  Quote,
+  UniverseItem,
+  ReitMetricsResponse,
+} from '../shared/types';
+import { METRIC_GROUPS, marketMetric } from '../shared/market-metrics';
 import { demoHistory } from '../shared/demo';
 import { findInstrument } from '../shared/catalog';
 import { bondValuation } from '../shared/valuation';
@@ -19,10 +26,12 @@ import { api } from './api';
 import { C, compact, percent, price, quoteTime } from './theme';
 import { Button, EmptyState, IconButton, ModeBadge, Notice, Panel } from './components';
 import Chart from './Chart';
+import { formatMetric } from './UniverseTable';
 
 export default function DetailModal({
   symbol,
   quotes,
+  item,
   watchlist,
   conversions,
   mode,
@@ -33,6 +42,7 @@ export default function DetailModal({
 }: {
   symbol: string | null;
   quotes: Record<string, Quote>;
+  item?: UniverseItem;
   watchlist: string[];
   conversions: Record<string, number>;
   mode?: DataMode;
@@ -47,6 +57,7 @@ export default function DetailModal({
   const [retry, setRetry] = useState(0);
   const [conversion, setConversion] = useState('');
   const [feedback, setFeedback] = useState('');
+  const [fundamentals, setFundamentals] = useState<ReitMetricsResponse | null>(null);
   const inset = useSafeAreaInsets();
   useEffect(() => {
     if (!symbol) return;
@@ -74,15 +85,31 @@ export default function DetailModal({
       active = false;
     };
   }, [symbol, retry]);
+  useEffect(() => {
+    setFundamentals(null);
+    if (!symbol || !/^(sh508\d{3}|sz180\d{3})$/.test(symbol)) return;
+    let active = true;
+    api
+      .reitMetrics(symbol)
+      .then((result) => {
+        if (active) setFundamentals(result);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [symbol, retry]);
   const quote = symbol ? (quotes[symbol] ?? extra) : null;
-  const instrument = symbol ? (quote ?? findInstrument(symbol)) : null;
+  const instrument = symbol ? (item ?? quote ?? findInstrument(symbol)) : null;
   const rising = (quote?.changePercent ?? 0) >= 0;
   const color = rising ? C.up : C.down;
   const valuation = quote
     ? bondValuation(
         quote,
-        quote.underlying ? quotes[quote.underlying] : undefined,
-        symbol ? conversions[symbol] : undefined,
+        (item?.underlying ?? quote.underlying)
+          ? quotes[(item?.underlying ?? quote.underlying)!]
+          : undefined,
+        (symbol ? conversions[symbol] : undefined) ?? item?.bond?.conversionPrice ?? undefined,
       )
     : null;
   function saveConversion() {
@@ -225,7 +252,10 @@ export default function DetailModal({
                     <Panel style={{ padding: 17 }}>
                       <Text style={s.sectionTitle}>转债估值参数</Text>
                       <Text style={s.helper}>
-                        转股价由你手动填写，保存在本机。请核对最新转股价调整公告。
+                        {item?.bond?.conversionPrice
+                          ? `数据源现行转股价：${price(item.bond.conversionPrice)}元。`
+                          : '暂未取得数据源转股价。'}
+                        可填写本机修正值；清空保存后恢复使用数据源参数。请核对最新公告。
                       </Text>
                       <View style={s.conversionRow}>
                         <TextInput
@@ -257,8 +287,10 @@ export default function DetailModal({
                         ))}
                       </View>
                       <Text style={s.helper}>
-                        正股：{quote.underlying ? findInstrument(quote.underlying).name : '—'} ·
-                        缺少正股行情或有效转股价时不计算。空白保存可清除参数。
+                        正股：
+                        {item?.bond?.stockName ??
+                          (quote.underlying ? findInstrument(quote.underlying).name : '—')}{' '}
+                        · 缺少正股行情或有效转股价时不计算。空白保存可清除参数。
                       </Text>
                     </Panel>
                   </View>
@@ -272,6 +304,66 @@ export default function DetailModal({
                 action="重新加载"
                 onAction={() => setRetry((v) => v + 1)}
               />
+            )}
+            {item?.bond && (
+              <View style={{ padding: 18, gap: 12 }}>
+                <Text style={s.sectionTitle}>转债指标与条款</Text>
+                <View style={s.metrics}>
+                  {METRIC_GROUPS.bond
+                    .flatMap((group) => group.columns)
+                    .filter(
+                      (column, index, all) => all.findIndex((c) => c.key === column.key) === index,
+                    )
+                    .map((column) => (
+                      <View key={column.key} style={s.metric}>
+                        <Text style={s.metricLabel}>{column.label}</Text>
+                        <Text style={s.metricValue}>
+                          {formatMetric(
+                            marketMetric(
+                              item,
+                              column.key,
+                              quotes,
+                              symbol ? conversions[symbol] : undefined,
+                            ),
+                            column,
+                          )}
+                        </Text>
+                      </View>
+                    ))}
+                </View>
+                <Notice text="税前YTM按报价日的合同现金流估算，含末期利息，未扣税费；已披露赎回公告或条款不完整时不计算。发行规模不是剩余规模。强赎价不代表满足触发天数，公告请以交易所披露为准。" />
+              </View>
+            )}
+            {(item?.type ?? quote?.type) === 'reit' && (
+              <View style={{ padding: 18, gap: 12 }}>
+                <Text style={s.sectionTitle}>净值与历史现金分派</Text>
+                <View style={s.metrics}>
+                  {METRIC_GROUPS.reit[1].columns.map((column) => (
+                    <View key={column.key} style={s.metric}>
+                      <Text style={s.metricLabel}>{column.label}</Text>
+                      <Text style={s.metricValue}>
+                        {formatMetric(
+                          marketMetric(
+                            (item ?? quote)!,
+                            column.key,
+                            quotes,
+                            undefined,
+                            fundamentals?.metrics ?? item?.reit,
+                          ),
+                          column,
+                        )}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+                <Notice
+                  text={
+                    fundamentals?.message ??
+                    '正在补充现金分红历史；披露净值不是盘中IOPV，缺失指标不使用交易价格反推。'
+                  }
+                />
+                <Notice text="净值分别来自腾讯基金/天天基金披露历史。历史现金分派率按近12个月明确现金分红记录÷现价计算，记录可能不完整，不是未来收益预测；分红记录日不等于到账日。" />
+              </View>
             )}
           </ScrollView>
           <View style={[s.bottom, { paddingBottom: Math.max(inset.bottom, 12) }]}>

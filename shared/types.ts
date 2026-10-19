@@ -62,3 +62,57 @@ export interface IPOResponse {
   message?: string;
   fetchedAt: string;
 }
+
+export type UniverseKind = 'bond' | 'reit';
+export interface BondMetrics {
+  conversionPrice: number | null;
+  stockName: string | null;
+  rating: string | null;
+  issueScale: number | null; // 发行规模，亿元；不等于剩余规模
+  issueDate: string | null;
+  listingDate: string | null;
+  maturityDate: string | null;
+  couponRates: number[] | null;
+  redemptionPrice: number | null; // 每百元面值，包含最后一期利息
+  redeemTriggerPrice: number | null;
+  resaleTriggerPrice: number | null;
+  redeemNoticeDate: string | null;
+  redeemDate: string | null;
+  redeemPrice: number | null;
+}
+export interface UniverseItem extends Instrument {
+  bond?: BondMetrics;
+  reit?: ReitMetrics;
+}
+export interface UniverseResponse {
+  kind: UniverseKind;
+  items: UniverseItem[];
+  quotes: Quote[];
+  mode: DataMode;
+  complete: boolean;
+  total: number | null;
+  sourceCount: number | null;
+  fetchedAt: string;
+  directoryUpdatedAt: string;
+  source: string;
+  message: string;
+}
+export interface ReitMetrics {
+  nav: number;
+  navDate: string;
+  cumulativeNav: number | null;
+  source: 'tencent-fund' | 'eastmoney-fund' | 'mixed';
+  cashDistributionTtm: number | null;
+  lastDistribution: number | null;
+  lastDistributionDate: string | null;
+  distributionCount: number;
+  coverageStart: string;
+  asOfDate: string;
+}
+export interface ReitMetricsResponse {
+  symbol: string;
+  available: boolean;
+  metrics: ReitMetrics | null;
+  fetchedAt: string;
+  message?: string;
+}

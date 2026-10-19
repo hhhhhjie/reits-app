@@ -32,7 +32,7 @@ import Svg, { Defs, LinearGradient, Line, Path, Rect, Stop } from 'react-native-
 import type { Quote } from './shared/types';
 import { INDICES, findInstrument } from './shared/catalog';
 import { C, percent, price, quoteTime } from './src/theme';
-import { useMarket, usePreferences } from './src/hooks';
+import { useFullMarkets, useMarket, usePreferences } from './src/hooks';
 import { IconButton, ModeBadge, Notice, Panel } from './src/components';
 import DataScreen from './src/DataScreen';
 import QuoteList from './src/QuoteList';
@@ -60,6 +60,8 @@ export default function App() {
 function Home() {
   const pref = usePreferences();
   const market = useMarket(pref.watchlist, pref.ready, pref.endpoint);
+  const fullMarkets = useFullMarkets(pref.ready, pref.endpoint);
+  const refresh = () => Promise.allSettled([market.refresh(), fullMarkets.refresh()]);
   const [tab, setTab] = useState<Tab>('data');
   const [searching, setSearching] = useState(false);
   const [detail, setDetail] = useState<string | null>(null);
@@ -70,10 +72,34 @@ function Home() {
   const { width } = useWindowDimensions();
   const wide = width >= 1020;
   const inset = useSafeAreaInsets();
-  const quotes = useMemo(
-    () => Object.fromEntries((market.data?.quotes || []).map((q) => [q.symbol, q])),
-    [market.data],
-  );
+  const quotes = useMemo(() => {
+    const merged: Record<string, Quote> = {};
+    const realUniverseSymbols = new Set(
+      Object.values(fullMarkets.data)
+        .filter((data) => data?.mode !== 'demo')
+        .flatMap(
+          (data) =>
+            data?.items.flatMap((item) =>
+              item.underlying ? [item.symbol, item.underlying] : [item.symbol],
+            ) ?? [],
+        ),
+    );
+    for (const q of [
+      ...(market.data?.quotes ?? []),
+      ...(fullMarkets.data.bond?.quotes ?? []),
+      ...(fullMarkets.data.reit?.quotes ?? []),
+    ]) {
+      if (q.source === 'demo' && realUniverseSymbols.has(q.symbol)) continue;
+      const previous = merged[q.symbol];
+      if (
+        !previous ||
+        (previous.source === 'demo' && q.source !== 'demo') ||
+        (previous.source === q.source && (q.timestamp ?? '') >= (previous.timestamp ?? ''))
+      )
+        merged[q.symbol] = q;
+    }
+    return merged;
+  }, [market.data, fullMarkets.data]);
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     document.title = '知行行情 · A股、港股与投资数据';
@@ -202,7 +228,7 @@ function Home() {
           <RefreshControl
             refreshing={market.loading && !!market.data}
             onRefresh={() => {
-              void market.refresh();
+              void refresh();
             }}
             tintColor={C.primary}
           />
@@ -210,7 +236,7 @@ function Home() {
         contentContainerStyle={{ paddingBottom: wide ? 30 : 20 }}
       >
         <View style={[s.body, !wide && { paddingHorizontal: 16, paddingTop: 16, gap: 14 }]}>
-          {tab !== 'settings' && (
+          {tab !== 'settings' && (wide || tab !== 'data') && (
             <>
               <View style={[s.hero, !wide && { padding: 20, minHeight: 105 }]}>
                 <View style={{ zIndex: 1, flex: 1 }}>
@@ -243,7 +269,7 @@ function Home() {
                     size={13}
                     label="刷新市场行情"
                     onPress={() => {
-                      void market.refresh();
+                      void refresh();
                     }}
                   />
                 </View>
@@ -306,7 +332,7 @@ function Home() {
               error
               text={`${market.error} 可在「我的」中检查服务地址。`}
               onPress={() => {
-                void market.refresh();
+                void refresh();
               }}
             />
           )}
@@ -323,7 +349,17 @@ function Home() {
           <View style={[s.columns, !wide && { gap: 0 }]}>
             <View style={{ flex: 1, minWidth: 0 }}>
               {tab === 'data' ? (
-                <DataScreen {...common} conversions={pref.conversions} />
+                <DataScreen
+                  {...common}
+                  conversions={pref.conversions}
+                  universes={fullMarkets.data}
+                  universeLoading={fullMarkets.loading}
+                  onRefresh={() => {
+                    void refresh();
+                  }}
+                  endpoint={pref.endpoint}
+                  onPageChange={() => scroll.current?.scrollTo({ y: 0, animated: false })}
+                />
               ) : tab === 'watch' || tab === 'markets' ? (
                 <QuoteList key={tab} {...common} onlyWatchlist={tab === 'watch'} />
               ) : (
@@ -333,7 +369,7 @@ function Home() {
                   onSave={pref.saveEndpoint}
                   watchCount={pref.watchlist.length}
                   refresh={() => {
-                    void market.refresh();
+                    void refresh();
                   }}
                 />
               )}
@@ -490,15 +526,27 @@ function Home() {
         onOpen={open}
       />
       <DetailModal
-        mode={market.data?.mode}
+        mode={
+          Object.values(fullMarkets.data).find((data) =>
+            data?.items.some((item) => item.symbol === detail),
+          )?.mode ?? market.data?.mode
+        }
         symbol={detail}
         quotes={quotes}
+        item={
+          detail
+            ? [
+                ...(fullMarkets.data.bond?.items ?? []),
+                ...(fullMarkets.data.reit?.items ?? []),
+              ].find((item) => item.symbol === detail)
+            : undefined
+        }
         watchlist={pref.watchlist}
         conversions={pref.conversions}
         onClose={() => setDetail(null)}
         onToggle={toggle}
         onRefresh={() => {
-          void market.refresh();
+          void refresh();
         }}
         onConversion={(symbol, value) =>
           pref.setConversions((previous) => {

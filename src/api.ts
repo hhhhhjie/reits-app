@@ -1,5 +1,13 @@
 import { Platform } from 'react-native';
-import type { HistoryResponse, Instrument, IPOResponse, QuoteResponse } from '../shared/types';
+import type {
+  HistoryResponse,
+  Instrument,
+  IPOResponse,
+  QuoteResponse,
+  UniverseKind,
+  UniverseResponse,
+  ReitMetricsResponse,
+} from '../shared/types';
 import { directSource } from './direct-source';
 
 let override = '';
@@ -19,9 +27,9 @@ export function getApiUrl() {
 export function usingDirectSource() {
   return Platform.OS === 'android' && !getApiUrl();
 }
-async function request<T>(path: string): Promise<T> {
+async function request<T>(path: string, timeoutMs = 12_000): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12_000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(`${getApiUrl()}${path}`, { signal: controller.signal });
     if (!response.ok)
@@ -57,4 +65,12 @@ export const api = {
     return { status: 'ok' };
   },
   ipo: () => (usingDirectSource() ? directSource.getIPOs() : request<IPOResponse>('/api/ipo')),
+  universe: (kind: UniverseKind) =>
+    usingDirectSource()
+      ? directSource.getUniverse(kind)
+      : request<UniverseResponse>(`/api/universe/${kind}`, 60_000),
+  reitMetrics: (symbol: string) =>
+    usingDirectSource()
+      ? directSource.getReitMetrics(symbol)
+      : request<ReitMetricsResponse>(`/api/reit/${symbol}`),
 };

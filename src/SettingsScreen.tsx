@@ -174,13 +174,13 @@ export default function SettingsScreen({
           </Text>
         )}
       </Panel>
-      <Notice text="新股日历依赖独立数据源；基金净值及REITs分派率尚未接入；可转债估值依赖你填写的最新有效转股价。" />
+      <Notice text="沪深可转债与公募REITs按完整目录加载，目录行情每60秒刷新。转债参数自动读取，可本机修正；REITs净值和历史现金分红独立加载，缺失留空。税前YTM为估算，历史分派率不代表未来收益。" />
       <View style={s.about}>
         <View style={s.titleRow}>
           <Heart size={12} color={C.primary} />
           <Text style={s.aboutText}>知行行情 · 让数据服务于思考</Text>
         </View>
-        <Text style={s.version}>Android · v1.0.0</Text>
+        <Text style={s.version}>Android · v1.1.0</Text>
       </View>
     </View>
   );

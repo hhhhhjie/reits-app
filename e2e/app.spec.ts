@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import { demoQuote } from '../shared/demo';
+import { parseBondTerms } from '../shared/fundamentals';
 
 test('品种标签、筛选、排序与A/H币种说明', async ({ page }) => {
   const errors: string[] = [];
@@ -104,4 +106,149 @@ test('新股源不可用时保留官方入口，不展示虚拟申购记录', as
   await expect(page.getByText('A股新股申购日历', { exact: true })).toBeVisible();
   await expect(page.getByText('发行日历暂不可用', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: '上海证券交易所', exact: true })).toBeVisible();
+});
+
+test('完整转债名单跨页搜索和全局排序，缺报价仍保留，自动参数进入详情', async ({ page }) => {
+  const items = Array.from({ length: 62 }, (_, i) => ({
+    symbol: `sh${113700 + i}`,
+    code: String(113700 + i),
+    name: `全量${i}转债`,
+    market: 'SH',
+    type: 'bond',
+    underlying: 'sh600519',
+    bond: {
+      ...parseBondTerms({
+        TRANSFER_PRICE: 10,
+        RATING: 'AA+',
+        VALUE_DATE: '2023-01-01',
+        EXPIRE_DATE: '2029-01-01',
+      }),
+      stockName: '贵州茅台',
+    },
+  }));
+  const quotes = items
+    .filter((_, i) => i !== 30)
+    .map((item) => ({
+      ...demoQuote('sh113052')!,
+      ...item,
+      price: 100 + Number(item.code) - 113700,
+      changePercent: 0,
+      source: 'tencent',
+      timestamp: '2026-10-19T15:00:00+08:00',
+    }));
+  quotes.push({
+    ...demoQuote('sh600519')!,
+    price: 12,
+    source: 'tencent',
+  } as (typeof quotes)[number]);
+  await page.route('**/api/universe/bond', (route) =>
+    route.fulfill({
+      json: {
+        kind: 'bond',
+        items,
+        quotes,
+        complete: true,
+        total: 62,
+        sourceCount: 62,
+        mode: 'live',
+        source: '完整目录测试夹具',
+        directoryUpdatedAt: '2026-10-19T15:00:00+08:00',
+        fetchedAt: '2026-10-19T15:00:00+08:00',
+        message: '1只行情暂缺，仍保留在名单中。',
+      },
+    }),
+  );
+  await page.goto('/');
+  await expect(page.getByText('沪深全市场 · 62只', { exact: true })).toBeVisible();
+  await expect(page.getByText('1 / 3 页 · 共62只', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '下一页', exact: true }).click();
+  await expect(page.getByText('2 / 3 页 · 共62只', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '下一页', exact: true }).click();
+  await expect(page.getByRole('button', { name: '查看全量30转债', exact: true })).toBeVisible();
+  await expect(page.getByText('SH 113730 · 行情暂缺', { exact: true })).toBeVisible();
+  await page.getByRole('textbox', { name: '搜索全市场可转债', exact: true }).fill('113761');
+  await expect(page.getByRole('button', { name: '查看全量61转债', exact: true })).toBeVisible();
+  await expect(page.getByText('1 / 1 页 · 共1只', { exact: true })).toBeVisible();
+  await page.getByRole('textbox', { name: '搜索全市场可转债', exact: true }).fill('');
+  await page.getByRole('button', { name: '按现价排序', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: /^查看全量\d+转债$/ }).first(),
+  ).toHaveAccessibleName('查看全量61转债');
+  await page.getByRole('button', { name: '查看全量61转债', exact: true }).click();
+  await expect(page.getByRole('dialog').getByText('10.00', { exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog').getByText('AA+', { exact: true })).toBeVisible();
+});
+
+test('REITs披露净值日期、折溢价和现金分红口径保持独立', async ({ page }) => {
+  const metrics = {
+    nav: 3,
+    navDate: '2026-06-30',
+    cumulativeNav: 3.8,
+    source: 'tencent-fund',
+    cashDistributionTtm: null,
+    lastDistribution: null,
+    lastDistributionDate: null,
+    distributionCount: 0,
+    coverageStart: '2026-06-30',
+    asOfDate: '2026-10-19',
+  };
+  const item = {
+    symbol: 'sh508888',
+    code: '508888',
+    name: '全量验证REIT',
+    market: 'SH',
+    type: 'reit',
+    reit: metrics,
+  };
+  await page.route('**/api/universe/reit', (route) =>
+    route.fulfill({
+      json: {
+        kind: 'reit',
+        items: [item],
+        quotes: [
+          {
+            ...demoQuote('sh508056')!,
+            ...item,
+            price: 3.3,
+            source: 'tencent',
+            timestamp: '2026-10-19T15:00:00+08:00',
+          },
+        ],
+        complete: true,
+        total: 1,
+        sourceCount: 1,
+        mode: 'live',
+        source: 'REIT完整目录测试夹具',
+        directoryUpdatedAt: '2026-10-19T15:00:00+08:00',
+        message: '',
+      },
+    }),
+  );
+  await page.route('**/api/reit/sh508888', (route) =>
+    route.fulfill({
+      json: {
+        symbol: item.symbol,
+        available: true,
+        metrics: {
+          ...metrics,
+          source: 'eastmoney-fund',
+          cashDistributionTtm: 0.3,
+          lastDistribution: 0.1,
+          lastDistributionDate: '2026-09-01',
+          distributionCount: 3,
+        },
+        fetchedAt: '2026-10-19T15:00:00+08:00',
+      },
+    }),
+  );
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'REITs', exact: true }).click();
+  await page.getByRole('tab', { name: '净值与分派', exact: true }).click();
+  await expect(page.getByText('2026-06-30', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: '全量验证REIT净值溢价率+10.00%', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText('2026-09-01', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '指标口径', exact: true }).click();
+  await expect(page.getByText(/不能当作未来或年化预测/)).toBeVisible();
 });
