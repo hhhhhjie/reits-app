@@ -39,6 +39,7 @@ import QuoteList from './src/QuoteList';
 import SearchModal from './src/SearchModal';
 import DetailModal from './src/DetailModal';
 import SettingsScreen from './src/SettingsScreen';
+import { useFilterPreferences } from './src/useFilterPreferences';
 
 type Tab = 'watch' | 'markets' | 'data' | 'settings';
 const TABS = [
@@ -59,6 +60,7 @@ export default function App() {
 
 function Home() {
   const pref = usePreferences();
+  const screening = useFilterPreferences();
   const market = useMarket(pref.watchlist, pref.ready, pref.endpoint);
   const fullMarkets = useFullMarkets(pref.ready, pref.endpoint);
   const refresh = () => Promise.allSettled([market.refresh(), fullMarkets.refresh()]);
@@ -343,6 +345,7 @@ function Home() {
             <Notice error text="连接中断 · 当前为上次成功获取的行情，请留意每条报价时间。" />
           )}
           {!!pref.storageError && <Notice error text={pref.storageError} />}
+          {!!screening.error && <Notice error text={screening.error} />}
           {guide && (
             <Notice text="在「数据」切换投资品种，点击表头排序；横向滑动查看更多指标。点击名称查看日线走势，点星标加入自选。转债详情可填写转股价计算溢价与双低值。" />
           )}
@@ -359,6 +362,7 @@ function Home() {
                   }}
                   endpoint={pref.endpoint}
                   onPageChange={() => scroll.current?.scrollTo({ y: 0, animated: false })}
+                  screening={screening}
                 />
               ) : tab === 'watch' || tab === 'markets' ? (
                 <QuoteList key={tab} {...common} onlyWatchlist={tab === 'watch'} />

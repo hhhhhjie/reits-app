@@ -1,6 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ArrowDown, ArrowUp, ArrowUpDown, RefreshCw, Search, Star } from 'lucide-react-native';
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  RefreshCw,
+  Search,
+  SlidersHorizontal,
+  Star,
+  X,
+} from 'lucide-react-native';
 import { CATALOG } from '../shared/catalog';
 import {
   METRIC_GROUPS,
@@ -18,6 +27,18 @@ import type {
 import { api } from './api';
 import { Button, EmptyState, ModeBadge, Notice, Panel } from './components';
 import { C, compact, percent, price, quoteTime } from './theme';
+import FilterPanel from './FilterPanel';
+import {
+  FILTER_FIELDS,
+  activeFilterChips,
+  canonicalFilters,
+  clearFilter,
+  emptyMarketFilters,
+  matchesMarketFilters,
+  upsertFilterPreset,
+  type KindFilterSettings,
+  type MarketFilters,
+} from '../shared/screening';
 
 export function formatMetric(value: MetricValue, column: MetricColumn) {
   if (value == null) return '—';
@@ -43,6 +64,9 @@ export default function UniverseTable({
   loading,
   endpoint,
   onPageChange,
+  filterSettings,
+  filtersReady,
+  onSettingsChange,
 }: {
   kind: UniverseKind;
   data?: UniverseResponse;
@@ -55,10 +79,14 @@ export default function UniverseTable({
   loading: boolean;
   endpoint: string;
   onPageChange: () => void;
+  filterSettings: KindFilterSettings;
+  filtersReady: boolean;
+  onSettingsChange: (change: (previous: KindFilterSettings) => KindFilterSettings) => Promise<void>;
 }) {
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState('全部');
-  const [market, setMarket] = useState('全部市场');
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const applied = filterSettings.applied;
+  const activeChips = activeFilterChips(applied, kind);
   const [group, setGroup] = useState(0);
   const [sort, setSort] = useState('changePercent');
   const [descending, setDescending] = useState(true);
@@ -102,7 +130,6 @@ export default function UniverseTable({
     const needle = query.trim().toLowerCase();
     return items
       .filter((item) => {
-        const q = quotes[item.symbol];
         if (
           needle &&
           !`${item.name} ${item.code} ${item.bond?.stockName ?? ''} ${item.underlying ?? ''}`
@@ -110,17 +137,15 @@ export default function UniverseTable({
             .includes(needle)
         )
           return false;
-        if (market !== '全部市场' && item.market !== (market === '沪市' ? 'SH' : 'SZ'))
-          return false;
-        if (filter === '仅自选' && !watchlist.includes(item.symbol)) return false;
-        if (filter === '价格≤120' && (!q || q.price > 120)) return false;
-        if (filter === '上涨' && (!q || q.changePercent <= 0)) return false;
-        if (filter === '下跌' && (!q || q.changePercent >= 0)) return false;
-        if (filter === '双低≤130') {
-          const value = marketMetric(item, 'doubleLow', quotes, conversions[item.symbol]);
-          if (typeof value !== 'number' || value > 130) return false;
-        }
-        return true;
+        return matchesMarketFilters(
+          item,
+          applied,
+          kind,
+          quotes,
+          watchlist,
+          conversions,
+          funds[item.symbol]?.metrics ?? item.reit,
+        );
       })
       .sort((a, b) => {
         const av = marketMetric(
@@ -145,7 +170,58 @@ export default function UniverseTable({
             : String(av).localeCompare(String(bv));
         return comparison * (descending ? -1 : 1) || a.code.localeCompare(b.code);
       });
-  }, [items, quotes, query, market, filter, watchlist, sort, descending, conversions, funds]);
+  }, [items, quotes, query, applied, watchlist, sort, descending, conversions, funds]);
+  function updateFilters(change: (previous: MarketFilters) => MarketFilters) {
+    if (!filtersReady) return;
+    setPage(0);
+    void onSettingsChange((previous) => ({
+      ...previous,
+      applied: canonicalFilters(change(previous.applied), kind),
+    })).catch(() => {});
+  }
+  function quickSelected(value: string) {
+    if (value === '全部') return !activeChips.length;
+    if (value === '仅自选') return applied.watchOnly;
+    if (value === '上涨' || value === '下跌')
+      return applied.trend === (value === '上涨' ? 'up' : 'down');
+    const key = value === '价格≤120' ? 'price' : 'doubleLow',
+      max = value === '价格≤120' ? '120' : '130';
+    return !applied.ranges[key]?.min && applied.ranges[key]?.max === max;
+  }
+  function quickFilter(value: string) {
+    updateFilters((previous) => {
+      if (value === '全部') return emptyMarketFilters();
+      if (value === '仅自选') return { ...previous, watchOnly: !previous.watchOnly };
+      if (value === '上涨' || value === '下跌') {
+        const trend = value === '上涨' ? 'up' : 'down';
+        return { ...previous, trend: previous.trend === trend ? 'all' : trend };
+      }
+      const key = value === '价格≤120' ? 'price' : 'doubleLow',
+        max = value === '价格≤120' ? '120' : '130';
+      return !previous.ranges[key]?.min && previous.ranges[key]?.max === max
+        ? clearFilter(previous, `range:${key}`)
+        : { ...previous, ranges: { ...previous.ranges, [key]: { min: '', max } } };
+    });
+  }
+  function previewCount(draft: MarketFilters) {
+    const needle = query.trim().toLowerCase();
+    return items.filter(
+      (item) =>
+        (!needle ||
+          `${item.name} ${item.code} ${item.bond?.stockName ?? ''} ${item.underlying ?? ''}`
+            .toLowerCase()
+            .includes(needle)) &&
+        matchesMarketFilters(
+          item,
+          draft,
+          kind,
+          quotes,
+          watchlist,
+          conversions,
+          funds[item.symbol]?.metrics ?? item.reit,
+        ),
+    ).length;
+  }
   const size = 25,
     totalPages = Math.max(1, Math.ceil(result.length / size)),
     currentPage = Math.min(page, totalPages - 1);
@@ -215,18 +291,18 @@ export default function UniverseTable({
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={s.chips}
         >
-          {['全部市场', '沪市', '深市'].map((value) => (
+          {(['all', 'SH', 'SZ'] as const).map((value, index) => (
             <Pressable
               key={value}
               accessibilityRole="button"
-              accessibilityState={{ selected: market === value }}
-              onPress={() => {
-                setMarket(value);
-                setPage(0);
-              }}
-              style={[s.chip, market === value && s.selected]}
+              accessibilityState={{ selected: applied.market === value }}
+              disabled={!filtersReady}
+              onPress={() => updateFilters((previous) => ({ ...previous, market: value }))}
+              style={[s.chip, applied.market === value && s.selected]}
             >
-              <Text style={[s.chipText, market === value && s.selectedText]}>{value}</Text>
+              <Text style={[s.chipText, applied.market === value && s.selectedText]}>
+                {['全部市场', '沪市', '深市'][index]}
+              </Text>
             </Pressable>
           ))}
           <View style={{ width: 1, backgroundColor: C.line, marginHorizontal: 3 }} />
@@ -234,17 +310,68 @@ export default function UniverseTable({
             <Pressable
               key={value}
               accessibilityRole="button"
-              accessibilityState={{ selected: filter === value }}
-              onPress={() => {
-                setFilter(value);
-                setPage(0);
-              }}
-              style={[s.chip, filter === value && s.selected]}
+              accessibilityState={{ selected: quickSelected(value) }}
+              disabled={!filtersReady}
+              onPress={() => quickFilter(value)}
+              style={[s.chip, quickSelected(value) && s.selected]}
             >
-              <Text style={[s.chipText, filter === value && s.selectedText]}>{value}</Text>
+              <Text style={[s.chipText, quickSelected(value) && s.selectedText]}>{value}</Text>
             </Pressable>
           ))}
         </ScrollView>
+        <View style={s.advancedRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="设置筛选"
+            disabled={!filtersReady}
+            onPress={() => setFilterPanelOpen(true)}
+            style={s.advancedButton}
+          >
+            <SlidersHorizontal size={14} color={C.primary} />
+            <Text style={s.link}>
+              设置筛选{activeChips.length ? ` · ${activeChips.length}` : ''}
+            </Text>
+          </Pressable>
+          {!!activeChips.length && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="清空全部筛选"
+              onPress={() => updateFilters(() => emptyMarketFilters())}
+            >
+              <Text style={s.link}>清空条件</Text>
+            </Pressable>
+          )}
+          {!filtersReady && <Text style={s.chipText}>正在读取本机条件…</Text>}
+        </View>
+        {!!activeChips.length && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.activeChips}
+          >
+            {activeChips.map((chip) => (
+              <Pressable
+                key={chip.key}
+                accessibilityRole="button"
+                accessibilityLabel={`取消${chip.key.startsWith('range:') ? FILTER_FIELDS[kind].find((f) => f.key === chip.key.slice(6))?.label : chip.label}筛选`}
+                onPress={() => updateFilters((previous) => clearFilter(previous, chip.key))}
+                style={s.activeChip}
+              >
+                <Text style={s.chipText}>{chip.label}</Text>
+                <X size={11} color={C.muted} />
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
+        {kind === 'reit' &&
+          processed < items.length &&
+          !!(applied.ranges.distributionYield || applied.ranges.cashDistributionTtm) && (
+            <View style={{ paddingHorizontal: 18, paddingBottom: 10 }}>
+              <Notice
+                text={`正在补充分红记录 ${processed}/${items.length}，缺失指标暂不进入筛选结果。`}
+              />
+            </View>
+          )}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -390,6 +517,12 @@ export default function UniverseTable({
             loading={loading}
             title={loading ? '正在获取全市场目录' : '没有符合条件的数据'}
             description="请调整名称、市场或指标筛选条件。缺失指标不会参与数值筛选。"
+            action="清空搜索和筛选"
+            onAction={() => {
+              setQuery('');
+              updateFilters(() => emptyMarketFilters());
+              onPageChange();
+            }}
           />
         )}
         <View style={s.pagination}>
@@ -434,6 +567,30 @@ export default function UniverseTable({
       ) : (
         <Notice text="净值及现金分红来自独立披露记录，可能滞后或缺失。历史现金分派率不是预期收益率，须结合基金公告核对。" />
       )}
+      <FilterPanel
+        visible={filterPanelOpen}
+        kind={kind}
+        settings={filterSettings}
+        onClose={() => setFilterPanelOpen(false)}
+        previewCount={previewCount}
+        searching={!!query.trim()}
+        scope={`${data?.complete ? '沪深全市场' : data?.mode === 'demo' ? '精选演示样本' : data?.mode === 'cached' ? '缓存名单' : '已载入目录'} ${items.length}只`}
+        loadingDistributions={processed < items.length}
+        onApply={async (filters) => {
+          setPage(0);
+          await onSettingsChange((previous) => ({ ...previous, applied: filters }));
+          onPageChange();
+        }}
+        onSave={(name, filters) =>
+          onSettingsChange((previous) => upsertFilterPreset(previous, name, filters, kind))
+        }
+        onDelete={(id) =>
+          onSettingsChange((previous) => ({
+            ...previous,
+            presets: previous.presets.filter((p) => p.id !== id),
+          }))
+        }
+      />
     </View>
   );
 }
@@ -465,6 +622,24 @@ const s = StyleSheet.create({
   scopeText: { fontSize: 11, color: C.primary },
   refresh: { flexDirection: 'row', gap: 4, alignItems: 'center', padding: 5 },
   link: { fontSize: 11, color: C.primary },
+  advancedRow: {
+    paddingHorizontal: 18,
+    paddingBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  advancedButton: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 5 },
+  activeChips: { paddingHorizontal: 18, paddingBottom: 12, gap: 6 },
+  activeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: C.bg,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 5,
+  },
   search: {
     marginHorizontal: 18,
     marginBottom: 12,

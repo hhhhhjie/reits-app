@@ -129,7 +129,7 @@ export default function SettingsScreen({
         </View>
         <View style={s.infoRow}>
           <Text style={s.label}>本机保存</Text>
-          <Text style={s.infoValue}>自选列表 · 转股价参数</Text>
+          <Text style={s.infoValue}>自选 · 转股价 · 筛选方案</Text>
         </View>
         <Button label="刷新行情" secondary icon={RefreshCw} onPress={refresh} />
       </Panel>
@@ -180,7 +180,7 @@ export default function SettingsScreen({
           <Heart size={12} color={C.primary} />
           <Text style={s.aboutText}>知行行情 · 让数据服务于思考</Text>
         </View>
-        <Text style={s.version}>Android · v1.1.0</Text>
+        <Text style={s.version}>Android · v1.2.0</Text>
       </View>
     </View>
   );

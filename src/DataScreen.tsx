@@ -23,6 +23,7 @@ import { C, compact, percent, price } from './theme';
 import { Button, EmptyState, Notice, Panel } from './components';
 import IPOPanel from './IPOPanel';
 import UniverseTable from './UniverseTable';
+import type { FilterPreferenceState } from './useFilterPreferences';
 
 const MODULE_ICONS = {
   bond: Coins,
@@ -81,6 +82,7 @@ export default function DataScreen({
   onRefresh,
   endpoint,
   onPageChange,
+  screening,
 }: {
   quotes: Record<string, Quote>;
   watchlist: string[];
@@ -94,6 +96,7 @@ export default function DataScreen({
   onRefresh: () => void;
   endpoint: string;
   onPageChange: () => void;
+  screening: FilterPreferenceState;
 }) {
   const [module, setModule] = useState<DataModule>('bond');
   const compactLayout = useWindowDimensions().width < 700;
@@ -231,6 +234,9 @@ export default function DataScreen({
           loading={universeLoading}
           endpoint={endpoint}
           onPageChange={onPageChange}
+          filterSettings={screening.settings[module]}
+          filtersReady={screening.ready}
+          onSettingsChange={(change) => screening.update(module, change)}
         />
       ) : (
         <Panel>
