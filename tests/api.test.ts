@@ -73,6 +73,20 @@ test('演示模式不伪造新股申购信息', async () => {
   assert.deepEqual(body.items, []);
 });
 
+test('股息接口限制范围，离线不生成股息率或五年均值', async () => {
+  assert.equal((await fetch(`${base}/api/income/all`)).status, 400);
+  for (const scope of ['a', 'hk', 'hkreit']) {
+    const response = await fetch(`${base}/api/income/${scope}`);
+    assert.equal(response.status, 200);
+    const data = await response.json();
+    assert.equal(data.scope, scope);
+    assert.equal(data.mode, 'demo');
+    assert.equal(data.directoryComplete, false);
+    assert.deepEqual(data.quotes, []);
+    assert.match(data.message, /不生成演示股息率/);
+  }
+});
+
 test('全市场及REITs指标接口校验类型，演示样本不冒充完整名单', async () => {
   const response = await fetch(`${base}/api/universe/bond`);
   assert.equal(response.status, 200);

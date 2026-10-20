@@ -22,6 +22,10 @@ export interface Quote extends Instrument {
   turnover: number | null;
   turnoverRate: number | null;
   pe: number | null;
+  pb?: number | null;
+  dividendYield?: number | null;
+  dividendPerShare?: number | null;
+  securityClass?: string;
   marketCap: number | null;
   timestamp: string | null;
   currency: 'CNY' | 'HKD';
@@ -47,7 +51,21 @@ export interface HistoryResponse {
   mode: DataMode;
   message?: string;
 }
-export type DataModule = 'bond' | 'etf' | 'lof' | 'reit' | 'ah' | 'ipo';
+export type DataModule = 'bond' | 'dividend' | 'etf' | 'lof' | 'reit' | 'ah' | 'ipo';
+
+export type IncomeScope = 'a' | 'hk' | 'hkreit';
+export interface IncomeResponse {
+  scope: IncomeScope;
+  items: Instrument[];
+  quotes: Quote[];
+  mode: DataMode;
+  directoryComplete: boolean;
+  sourceCount: number | null;
+  directoryDate: string;
+  fetchedAt: string;
+  source: string;
+  message: string;
+}
 export interface IPO {
   code: string;
   name: string;

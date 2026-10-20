@@ -3,6 +3,7 @@ import type { HistoryResponse, Instrument, IPOResponse, Quote, QuoteResponse } f
 import { demoHistory, demoQuote } from './demo';
 import { parseHistory, parseIPOs, parseQuotes, parseSearch } from './parsers';
 import { createUniverseSource } from './universe';
+import { createIncomeSource } from './income';
 
 export type TextTransport = (url: string, encoding?: string) => Promise<string>;
 export function createMarketSource(request: TextTransport, isDemo: () => boolean = () => false) {
@@ -169,5 +170,12 @@ export function createMarketSource(request: TextTransport, isDemo: () => boolean
     }
   }
 
-  return { getQuotes, getHistory, searchInstruments, getIPOs, ...createUniverseSource(request, getQuotes, isDemo) };
+  return {
+    getQuotes,
+    getHistory,
+    searchInstruments,
+    getIPOs,
+    ...createUniverseSource(request, getQuotes, isDemo),
+    ...createIncomeSource(request, getQuotes, isDemo),
+  };
 }

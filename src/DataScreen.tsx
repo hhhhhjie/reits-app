@@ -13,20 +13,29 @@ import {
   ExternalLink,
   Layers,
   ListFilter,
+  Percent,
   SlidersHorizontal,
   Star,
 } from 'lucide-react-native';
 import { AH_PAIRS, CATALOG, MODULES } from '../shared/catalog';
-import type { DataModule, Quote, UniverseKind, UniverseResponse } from '../shared/types';
+import type {
+  DataModule,
+  IncomeResponse,
+  Quote,
+  UniverseKind,
+  UniverseResponse,
+} from '../shared/types';
 import { bondValuation } from '../shared/valuation';
 import { C, compact, percent, price } from './theme';
 import { Button, EmptyState, Notice, Panel } from './components';
 import IPOPanel from './IPOPanel';
 import UniverseTable from './UniverseTable';
 import type { FilterPreferenceState } from './useFilterPreferences';
+import IncomeTable from './IncomeTable';
 
 const MODULE_ICONS = {
   bond: Coins,
+  dividend: Percent,
   etf: Layers,
   lof: Banknote,
   reit: Building2,
@@ -83,6 +92,8 @@ export default function DataScreen({
   endpoint,
   onPageChange,
   screening,
+  onIncomeData,
+  incomeRefreshKey,
 }: {
   quotes: Record<string, Quote>;
   watchlist: string[];
@@ -97,8 +108,12 @@ export default function DataScreen({
   endpoint: string;
   onPageChange: () => void;
   screening: FilterPreferenceState;
+  onIncomeData: (data: IncomeResponse) => void;
+  incomeRefreshKey: number;
 }) {
   const [module, setModule] = useState<DataModule>('bond');
+  const [dividendMarket, setDividendMarket] = useState<'a' | 'hk'>('a');
+  const [reitMarket, setReitMarket] = useState<'cn' | 'hk'>('cn');
   const compactLayout = useWindowDimensions().width < 700;
   const [filter, setFilter] = useState('全部');
   const [sortKey, setSortKey] = useState<SortKey>('changePercent');
@@ -211,12 +226,68 @@ export default function DataScreen({
               : module === 'ah'
                 ? 'A股以人民币报价，H股以港元报价。原币价比未计入汇率、交易成本与税费，不等于A/H溢价率。'
                 : module === 'reit'
-                  ? '沪深公募REITs完整名单；净值与分红按披露日期展示。历史现金分派率按已取得的近12月分红记录计算，不代表未来收益。'
-                  : '涨跌幅以昨收计算；成交额为行情源口径。缺失指标以“—”表示。'
+                  ? '沪深公募REITs与港股REITs分开查看。沪深净值与分红按披露日期展示；港股报价可能为HKD或CNY，股息率为行情源口径。'
+                  : module === 'dividend'
+                    ? '切换沪深A股与港股，按价格、PE-TTM、PB和股息率排序或组合筛选。五年平均股息率和估值温度缺少已核验历史时保持缺失。'
+                    : '涨跌幅以昨收计算；成交额为行情源口径。缺失指标以“—”表示。'
           }
         />
       )}
-      {module === 'ah' ? (
+      {(module === 'dividend' || module === 'reit') && (
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+          {(module === 'dividend'
+            ? [
+                { key: 'a', label: 'A股' },
+                { key: 'hk', label: '港股' },
+              ]
+            : [
+                { key: 'cn', label: '沪深公募' },
+                { key: 'hk', label: '港股REITs' },
+              ]
+          ).map((choice) => {
+            const selected = (module === 'dividend' ? dividendMarket : reitMarket) === choice.key;
+            return (
+              <Pressable
+                key={choice.key}
+                accessibilityRole="tab"
+                accessibilityLabel={choice.label}
+                accessibilityState={{ selected }}
+                onPress={() =>
+                  module === 'dividend'
+                    ? setDividendMarket(choice.key as 'a' | 'hk')
+                    : setReitMarket(choice.key as 'cn' | 'hk')
+                }
+                style={{
+                  paddingHorizontal: 18,
+                  paddingVertical: 11,
+                  backgroundColor: selected ? C.primary : C.card,
+                  borderRadius: 9,
+                }}
+              >
+                <Text
+                  style={{ fontSize: 13, fontWeight: '600', color: selected ? '#fff' : C.muted }}
+                >
+                  {choice.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+      {module === 'dividend' || (module === 'reit' && reitMarket === 'hk') ? (
+        <IncomeTable
+          key={module === 'reit' ? 'hkreit' : dividendMarket}
+          scope={module === 'reit' ? 'hkreit' : dividendMarket}
+          quotes={quotes}
+          watchlist={watchlist}
+          onOpen={onOpen}
+          onToggle={onToggle}
+          endpoint={endpoint}
+          onData={onIncomeData}
+          refreshKey={incomeRefreshKey}
+          onPageChange={onPageChange}
+        />
+      ) : module === 'ah' ? (
         <AHTable quotes={quotes} onOpen={onOpen} />
       ) : module === 'ipo' ? (
         <IPOPanel />

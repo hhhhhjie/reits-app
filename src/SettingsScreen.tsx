@@ -180,7 +180,7 @@ export default function SettingsScreen({
           <Heart size={12} color={C.primary} />
           <Text style={s.aboutText}>知行行情 · 让数据服务于思考</Text>
         </View>
-        <Text style={s.version}>Android · v1.2.0</Text>
+        <Text style={s.version}>Android · v1.3.0</Text>
       </View>
     </View>
   );

@@ -221,7 +221,13 @@ export default function DetailModal({
                       '换手率',
                       quote.turnoverRate == null ? '—' : `${quote.turnoverRate.toFixed(2)}%`,
                     ],
-                    ['市盈率', price(quote.pe)],
+                    ['PE-TTM', price(quote.pe)],
+                    ['PB', price(quote.pb)],
+                    [
+                      '股息率（源）',
+                      quote.dividendYield == null ? '—' : `${quote.dividendYield.toFixed(2)}%`,
+                    ],
+                    ['每份股息（源）', price(quote.dividendPerShare, 4)],
                     ['总市值', compact(quote.marketCap)],
                     ['行情来源', quote.source === 'demo' ? '演示样本' : '腾讯公开行情'],
                   ].map(([label, value]) => (
@@ -334,7 +340,12 @@ export default function DetailModal({
                 <Notice text="税前YTM按报价日的合同现金流估算，含末期利息，未扣税费；已披露赎回公告或条款不完整时不计算。发行规模不是剩余规模。强赎价不代表满足触发天数，公告请以交易所披露为准。" />
               </View>
             )}
-            {(item?.type ?? quote?.type) === 'reit' && (
+            {(item?.type ?? quote?.type) === 'reit' && instrument?.market === 'HK' && (
+              <View style={{ padding: 18 }}>
+                <Notice text="港股REITs股息率及每份股息采用行情源口径，可能包含特别分派，不代表未来回报。当前未接入已核验的港股REITs披露净值，不以PB或交易价格反推；报价币种以本页CNY/HKD为准。" />
+              </View>
+            )}
+            {(item?.type ?? quote?.type) === 'reit' && instrument?.market !== 'HK' && (
               <View style={{ padding: 18, gap: 12 }}>
                 <Text style={s.sectionTitle}>净值与历史现金分派</Text>
                 <View style={s.metrics}>

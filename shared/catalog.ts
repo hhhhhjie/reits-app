@@ -16,6 +16,20 @@ const item = (
   market: symbol.startsWith('sh') ? 'SH' : symbol.startsWith('sz') ? 'SZ' : 'HK',
 });
 
+// 维护名单，不冒充动态港交所全市场目录；报价和基金类型须由实时源再次确认。
+export const HK_REITS: Instrument[] = [
+  item('hk00405', '越秀房产信托基金', 'reit', 'yuexiu yxfc'),
+  item('hk00435', '阳光房地产基金', 'reit', 'yangguang ygfdc'),
+  item('hk00778', '置富产业信托', 'reit', 'zhifu zfcy'),
+  item('hk00808', '泓富产业信托', 'reit', 'hongfu hfcy'),
+  item('hk00823', '领展房产基金', 'reit', 'lingzhan lzfc link'),
+  item('hk01426', '春泉产业信托', 'reit', 'chunquan cqcy'),
+  item('hk01503', '招商局商业房托', 'reit', 'zhaoshangju zsj'),
+  item('hk02191', '顺丰房托', 'reit', 'shunfeng sf'),
+  item('hk02778', '冠君产业信托', 'reit', 'guanjun gjcy'),
+  item('hk87001', '汇贤产业信托', 'reit', 'huixian hxcy'),
+];
+
 export const CATALOG: Instrument[] = [
   item('sh000001', '上证指数', 'index', 'shangzheng szzs'),
   item('sz399001', '深证成指', 'index', 'shenzheng szcz'),
@@ -87,9 +101,10 @@ export const AH_PAIRS = [
 export const MODULES: { key: import('./types').DataModule; label: string; description: string }[] =
   [
     { key: 'bond', label: '可转债', description: '全市场转债与自动估值' },
+    { key: 'dividend', label: '股息率', description: '沪深与港股的股息和估值' },
     { key: 'etf', label: 'ETF', description: '场内指数基金行情' },
     { key: 'lof', label: 'LOF', description: '上市开放式基金行情' },
-    { key: 'reit', label: 'REITs', description: '沪深公募REITs与净值分派' },
+    { key: 'reit', label: 'REITs', description: '沪深公募与港股REITs' },
     { key: 'ah', label: 'A/H比价', description: '同一公司两地价格对照' },
     { key: 'ipo', label: '新股', description: '发行、申购与上市日历' },
   ];
@@ -110,6 +125,7 @@ export function findInstrument(symbol: string, name?: string): Instrument {
   return (
     discovered.get(symbol) ??
     CATALOG.find((x) => x.symbol === symbol) ??
+    HK_REITS.find((x) => x.symbol === symbol) ??
     item(symbol, name || symbol.slice(2), inferType(symbol))
   );
 }
@@ -117,7 +133,11 @@ export function findInstrument(symbol: string, name?: string): Instrument {
 export function searchCatalog(query: string): Instrument[] {
   const value = query.toLowerCase().trim();
   if (!value) return [];
-  return [...new Map([...CATALOG, ...discovered.values()].map((x) => [x.symbol, x])).values()]
+  return [
+    ...new Map(
+      [...CATALOG, ...HK_REITS, ...discovered.values()].map((x) => [x.symbol, x]),
+    ).values(),
+  ]
     .filter((x) =>
       `${x.name} ${x.code} ${x.symbol} ${x.keywords || ''}`.toLowerCase().includes(value),
     )

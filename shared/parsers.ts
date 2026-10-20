@@ -26,7 +26,13 @@ export function parseQuotes(text: string): Quote[] {
     const previousClose = number(f[4]);
     if (!f[1] || !price || !previousClose || f.length < 33) continue;
     const isHK = symbol.startsWith('hk');
-    const instrument = { ...findInstrument(symbol, f[1]), name: f[1] };
+    const extendedHK = isHK && /^(HKD|CNY)$/.test(f[75] ?? '');
+    const extendedA = !isHK && /^GP-A(?:-|$)/.test(f[61] ?? '') && f[82] === 'CNY';
+    const instrument = {
+      ...findInstrument(symbol, f[1]),
+      name: f[1],
+      ...(extendedHK && f[63] === 'GP-FUND-REITS' ? { type: 'reit' as const } : {}),
+    };
     // 港股的 31/32 为成交额/涨跌额；沪深的 31/32 为涨跌额/涨跌幅。
     // 涨跌幅统一用现价与昨收计算，避免两个市场字段位置差异。
     const change = price - previousClose;
@@ -41,17 +47,34 @@ export function parseQuotes(text: string): Quote[] {
       change: Number(change.toFixed(4)),
       changePercent: Number(((change / previousClose) * 100).toFixed(4)),
       volume: number(f[6]),
-      // 港股量额字段口径不同，未确认的数据留空，避免显示错误指标。
-      turnover: isHK ? null : number(f[37]) === null ? null : Number(f[37]) * 10000,
-      turnoverRate: isHK ? null : number(f[38]),
-      pe: isHK ? null : number(f[39]),
-      marketCap: isHK ? null : number(f[45]) === null ? null : Number(f[45]) * 100000000,
+      // HK 37 为报价币种金额，沪深 37 为万元；HK 的38是占位，换手率在59。
+      turnover: isHK
+        ? extendedHK
+          ? number(f[37])
+          : null
+        : number(f[37]) === null
+          ? null
+          : Number(f[37]) * 10000,
+      turnoverRate: isHK ? (extendedHK ? number(f[59]) : null) : number(f[38]),
+      pe: isHK && !extendedHK ? null : number(f[39]),
+      pb: isHK ? (extendedHK ? number(f[58]) : null) : number(f[46]),
+      // 腾讯扩展股票协议：A股64 / 港股47为源端股息率，百分数；未识别协议保持缺失。
+      dividendYield: extendedHK || extendedA ? nonnegative(f[isHK ? 47 : 64]) : null,
+      dividendPerShare: extendedHK ? nonnegative(f[72]) : null,
+      securityClass: extendedHK ? f[63] : extendedA ? f[61] : undefined,
+      marketCap:
+        isHK && !extendedHK ? null : number(f[45]) === null ? null : Number(f[45]) * 100000000,
       timestamp,
-      currency: isHK ? 'HKD' : 'CNY',
+      currency: extendedHK && f[75] === 'CNY' ? 'CNY' : isHK ? 'HKD' : 'CNY',
       source: 'tencent',
     });
   }
   return quotes;
+}
+
+function nonnegative(value: string | undefined) {
+  const n = number(value);
+  return n != null && n >= 0 ? n : null;
 }
 
 export function parseHistory(payload: unknown, symbol: string): Candle[] {

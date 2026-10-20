@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -29,7 +29,7 @@ import {
   UserRound,
 } from 'lucide-react-native';
 import Svg, { Defs, LinearGradient, Line, Path, Rect, Stop } from 'react-native-svg';
-import type { Quote } from './shared/types';
+import type { IncomeResponse, IncomeScope, Quote } from './shared/types';
 import { INDICES, findInstrument } from './shared/catalog';
 import { C, percent, price, quoteTime } from './src/theme';
 import { useFullMarkets, useMarket, usePreferences } from './src/hooks';
@@ -63,7 +63,19 @@ function Home() {
   const screening = useFilterPreferences();
   const market = useMarket(pref.watchlist, pref.ready, pref.endpoint);
   const fullMarkets = useFullMarkets(pref.ready, pref.endpoint);
-  const refresh = () => Promise.allSettled([market.refresh(), fullMarkets.refresh()]);
+  const [incomeData, setIncomeData] = useState<Partial<Record<IncomeScope, IncomeResponse>>>({});
+  const [incomeRefreshKey, setIncomeRefreshKey] = useState(0);
+  const onIncomeData = useCallback(
+    (result: IncomeResponse) => setIncomeData((old) => ({ ...old, [result.scope]: result })),
+    [],
+  );
+  useEffect(() => {
+    setIncomeData({});
+  }, [pref.endpoint]);
+  const refresh = () => {
+    setIncomeRefreshKey((n) => n + 1);
+    return Promise.allSettled([market.refresh(), fullMarkets.refresh()]);
+  };
   const [tab, setTab] = useState<Tab>('data');
   const [searching, setSearching] = useState(false);
   const [detail, setDetail] = useState<string | null>(null);
@@ -77,7 +89,7 @@ function Home() {
   const quotes = useMemo(() => {
     const merged: Record<string, Quote> = {};
     const realUniverseSymbols = new Set(
-      Object.values(fullMarkets.data)
+      [...Object.values(fullMarkets.data), ...Object.values(incomeData)]
         .filter((data) => data?.mode !== 'demo')
         .flatMap(
           (data) =>
@@ -90,6 +102,7 @@ function Home() {
       ...(market.data?.quotes ?? []),
       ...(fullMarkets.data.bond?.quotes ?? []),
       ...(fullMarkets.data.reit?.quotes ?? []),
+      ...Object.values(incomeData).flatMap((data) => data?.quotes ?? []),
     ]) {
       if (q.source === 'demo' && realUniverseSymbols.has(q.symbol)) continue;
       const previous = merged[q.symbol];
@@ -101,7 +114,7 @@ function Home() {
         merged[q.symbol] = q;
     }
     return merged;
-  }, [market.data, fullMarkets.data]);
+  }, [market.data, fullMarkets.data, incomeData]);
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     document.title = '知行行情 · A股、港股与投资数据';
@@ -363,6 +376,8 @@ function Home() {
                   endpoint={pref.endpoint}
                   onPageChange={() => scroll.current?.scrollTo({ y: 0, animated: false })}
                   screening={screening}
+                  onIncomeData={onIncomeData}
+                  incomeRefreshKey={incomeRefreshKey}
                 />
               ) : tab === 'watch' || tab === 'markets' ? (
                 <QuoteList key={tab} {...common} onlyWatchlist={tab === 'watch'} />
@@ -531,7 +546,7 @@ function Home() {
       />
       <DetailModal
         mode={
-          Object.values(fullMarkets.data).find((data) =>
+          [...Object.values(fullMarkets.data), ...Object.values(incomeData)].find((data) =>
             data?.items.some((item) => item.symbol === detail),
           )?.mode ?? market.data?.mode
         }
@@ -542,6 +557,7 @@ function Home() {
             ? [
                 ...(fullMarkets.data.bond?.items ?? []),
                 ...(fullMarkets.data.reit?.items ?? []),
+                ...Object.values(incomeData).flatMap((data) => data?.items ?? []),
               ].find((item) => item.symbol === detail)
             : undefined
         }

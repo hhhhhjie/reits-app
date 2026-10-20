@@ -9,6 +9,7 @@ import {
   searchInstruments,
   getUniverse,
   getReitMetrics,
+  getIncome,
 } from './provider';
 
 export function createApp() {
@@ -47,6 +48,18 @@ export function createApp() {
     }),
   );
   app.get('/api/catalog', (_req, res) => res.json({ instruments: CATALOG }));
+  app.get('/api/income/:scope', async (req, res) => {
+    const scope = req.params.scope;
+    if (scope !== 'a' && scope !== 'hk' && scope !== 'hkreit') {
+      res.status(400).json({ error: '仅支持沪深A股、港股或港股REITs。' });
+      return;
+    }
+    try {
+      res.json(await getIncome(scope));
+    } catch {
+      res.status(502).json({ error: '股息行情暂不可用。' });
+    }
+  });
   app.get('/api/universe/:kind', async (req, res) => {
     if (req.params.kind !== 'bond' && req.params.kind !== 'reit') {
       res.status(400).json({ error: '仅支持沪深可转债或REITs。' });

@@ -7,6 +7,8 @@ import type {
   UniverseKind,
   UniverseResponse,
   ReitMetricsResponse,
+  IncomeScope,
+  IncomeResponse,
 } from '../shared/types';
 import { directSource } from './direct-source';
 
@@ -44,6 +46,10 @@ async function request<T>(path: string, timeoutMs = 12_000): Promise<T> {
   }
 }
 export const api = {
+  income: (scope: IncomeScope) =>
+    usingDirectSource()
+      ? directSource.getIncome(scope)
+      : request<IncomeResponse>(`/api/income/${scope}`, 180_000),
   quotes: (symbols: string[]) =>
     usingDirectSource()
       ? directSource.getQuotes(symbols)

@@ -320,7 +320,7 @@ export function createUniverseSource(
           message: '目录或行情更新失败，保留上次数据，请留意原始时间。',
         };
       else {
-        const items = CATALOG.filter((r) => r.type === kind);
+        const items = CATALOG.filter((r) => r.type === kind && r.market !== 'HK');
         result = {
           kind,
           items,

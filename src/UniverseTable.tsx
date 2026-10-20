@@ -94,7 +94,8 @@ export default function UniverseTable({
   const [help, setHelp] = useState(false);
   const [funds, setFunds] = useState<Record<string, ReitMetricsResponse>>({});
   const [processed, setProcessed] = useState(0);
-  const items: UniverseItem[] = data?.items ?? CATALOG.filter((item) => item.type === kind);
+  const items: UniverseItem[] =
+    data?.items ?? CATALOG.filter((item) => item.type === kind && item.market !== 'HK');
   const symbolKey = items.map((item) => item.symbol).join(',');
   const groups = METRIC_GROUPS[kind],
     columns = groups[group].columns;
