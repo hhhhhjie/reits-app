@@ -1,5 +1,6 @@
-import type { Quote, ReitMetrics, UniverseItem, UniverseKind } from './types';
+import type { BondModelInputs, Quote, ReitMetrics, UniverseItem, UniverseKind } from './types';
 import { bondValuation, bondYieldToMaturity } from './valuation';
+import { bondModelValuation } from './bond-model';
 
 export type MetricFormat = 'price' | 'percent' | 'amount' | 'number' | 'text' | 'years';
 export interface MetricColumn {
@@ -24,6 +25,20 @@ export const METRIC_GROUPS: Record<UniverseKind, { label: string; columns: Metri
         col('ytm', '税前YTM估算', 'percent'),
         col('yearsLeft', '剩余年限', 'years'),
         col('turnover', '成交额', 'amount'),
+      ],
+    },
+    {
+      label: '理论估值',
+      columns: [
+        col('price', '现价'),
+        col('pureBondValue', '纯债价值'),
+        col('optionValue', '期权价值'),
+        col('theoreticalValue', '理论价值'),
+        col('theoreticalDeviation', '理论偏离度', 'percent'),
+        col('pureBondDate', '纯债日期', 'text'),
+        col('modelVolatility', '历史波动率', 'percent'),
+        col('riskFreeRate', '国债年率', 'percent'),
+        col('modelDividendYield', '股息率代理', 'percent'),
       ],
     },
     {
@@ -87,12 +102,28 @@ export function marketMetric(
   quotes: Record<string, Quote>,
   conversion?: number,
   reit?: ReitMetrics | null,
+  model?: BondModelInputs,
 ): MetricValue {
   const q = quotes[item.symbol];
   const stock = item.underlying ? quotes[item.underlying] : undefined;
   const terms = item.bond;
   const conversionPrice = conversion ?? terms?.conversionPrice ?? undefined;
   const valuation = q ? bondValuation(q, stock, conversionPrice) : null;
+  if (
+    [
+      'pureBondValue',
+      'pureBondDate',
+      'optionValue',
+      'theoreticalValue',
+      'theoreticalDeviation',
+      'modelVolatility',
+      'riskFreeRate',
+      'modelDividendYield',
+    ].includes(key)
+  ) {
+    const values = bondModelValuation(item, q, stock, conversionPrice, model);
+    return values[key as keyof typeof values] ?? null;
+  }
   if (key === 'premium' || key === 'doubleLow' || key === 'conversionValue')
     return valuation?.[key] ?? null;
   if (key === 'conversionPrice') return conversionPrice ?? null;

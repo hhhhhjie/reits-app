@@ -4,6 +4,7 @@ import { demoHistory, demoQuote } from './demo';
 import { parseHistory, parseIPOs, parseQuotes, parseSearch } from './parsers';
 import { createUniverseSource } from './universe';
 import { createIncomeSource } from './income';
+import { createBondModelSource } from './bond-model-source';
 
 export type TextTransport = (url: string, encoding?: string) => Promise<string>;
 export function createMarketSource(request: TextTransport, isDemo: () => boolean = () => false) {
@@ -170,12 +171,14 @@ export function createMarketSource(request: TextTransport, isDemo: () => boolean
     }
   }
 
+  const bondModel = createBondModelSource(request, isDemo);
   return {
     getQuotes,
     getHistory,
     searchInstruments,
     getIPOs,
-    ...createUniverseSource(request, getQuotes, isDemo),
+    ...createUniverseSource(request, getQuotes, isDemo, bondModel.getPureBondValues),
     ...createIncomeSource(request, getQuotes, isDemo),
+    ...bondModel,
   };
 }

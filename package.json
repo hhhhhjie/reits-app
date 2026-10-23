@@ -1,6 +1,6 @@
 {
   "name": "zhixing-markets",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
   "main": "index.ts",
   "scripts": {
@@ -21,7 +21,8 @@
     "test:live": "tsx scripts/check-live.ts",
     "test:android-data": "tsx scripts/check-android-data.ts",
     "test:universe": "tsx scripts/check-universe.ts",
-    "test:income": "tsx scripts/check-income.ts"
+    "test:income": "tsx scripts/check-income.ts",
+    "test:bond-model": "tsx scripts/check-bond-model.ts"
   },
   "dependencies": {
     "@kayahr/text-encoding": "^2.2.0",

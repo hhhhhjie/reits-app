@@ -10,7 +10,11 @@ import {
   getUniverse,
   getReitMetrics,
   getIncome,
+  getBondModelInputs,
 } from './provider';
+import { beijingDate } from '../shared/fundamentals';
+import { dateGap, validDate } from '../shared/bond-model';
+import { mapConcurrent } from '../shared/universe';
 
 export function createApp() {
   const app = express();
@@ -48,6 +52,28 @@ export function createApp() {
     }),
   );
   app.get('/api/catalog', (_req, res) => res.json({ instruments: CATALOG }));
+  app.get('/api/bond-model', async (req, res) => {
+    const symbols =
+        typeof req.query.symbols === 'string' ? [...new Set(req.query.symbols.split(','))] : [],
+      asOf = req.query.asOf;
+    if (
+      !symbols.length ||
+      symbols.length > 10 ||
+      !symbols.every((s) => /^(?:sh6\d{5}|sz(?:00|30)\d{4})$/.test(s)) ||
+      typeof asOf !== 'string' ||
+      !validDate(asOf) ||
+      asOf > beijingDate() ||
+      dateGap(beijingDate(), asOf) > 370
+    ) {
+      res.status(400).json({ error: '请提供最多10只沪深正股代码和有效估值日期。' });
+      return;
+    }
+    try {
+      res.json({ items: await mapConcurrent(symbols, 3, (s) => getBondModelInputs(s, asOf)) });
+    } catch {
+      res.status(502).json({ error: '波动率和国债收益率暂不可用。' });
+    }
+  });
   app.get('/api/income/:scope', async (req, res) => {
     const scope = req.params.scope;
     if (scope !== 'a' && scope !== 'hk' && scope !== 'hkreit') {

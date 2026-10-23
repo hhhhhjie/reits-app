@@ -21,4 +21,5 @@ export const {
   getUniverse,
   getReitMetrics,
   getIncome,
+  getBondModelInputs,
 } = createMarketSource(request, () => process.env.MARKET_DATA_MODE === 'demo');

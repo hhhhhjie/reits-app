@@ -9,8 +9,10 @@ import type {
   ReitMetricsResponse,
   IncomeScope,
   IncomeResponse,
+  BondModelInputs,
 } from '../shared/types';
 import { directSource } from './direct-source';
+import { mapConcurrent } from '../shared/universe';
 
 let override = '';
 export function setApiUrl(value: string) {
@@ -46,6 +48,15 @@ async function request<T>(path: string, timeoutMs = 12_000): Promise<T> {
   }
 }
 export const api = {
+  bondModels: (symbols: string[], asOf: string): Promise<{ items: BondModelInputs[] }> =>
+    usingDirectSource()
+      ? mapConcurrent(symbols, 3, (symbol) => directSource.getBondModelInputs(symbol, asOf)).then(
+          (items) => ({ items }),
+        )
+      : request(
+          `/api/bond-model?symbols=${symbols.join(',')}&asOf=${encodeURIComponent(asOf)}`,
+          90_000,
+        ),
   income: (scope: IncomeScope) =>
     usingDirectSource()
       ? directSource.getIncome(scope)

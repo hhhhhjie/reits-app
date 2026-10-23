@@ -58,6 +58,8 @@ test('转债全市场逐页加载，超过150只分批报价，不遗漏无报�
   const source = createMarketSource(async (url) => {
     const u = new URL(url);
     if (u.hostname === 'datacenter-web.eastmoney.com') {
+      if (u.searchParams.get('reportName') !== 'RPT_BOND_CB_LIST')
+        throw new Error('No valuation fixture in this directory pagination case');
       const page = Number(u.searchParams.get('pageNumber'));
       pages.push(page);
       return JSON.stringify({

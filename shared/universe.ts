@@ -16,6 +16,7 @@ import type {
   UniverseItem,
   UniverseKind,
   UniverseResponse,
+  PureBondValues,
 } from './types';
 
 const BOND_COLUMNS = [
@@ -80,6 +81,7 @@ export function createUniverseSource(
   request: TextTransport,
   getQuotes: (symbols: string[]) => Promise<QuoteResponse>,
   isDemo: () => boolean,
+  getPureBondValues?: (asOf: string) => Promise<PureBondValues>,
 ) {
   const directories = new Map<UniverseKind, { value: Directory; expires: number }>();
   const cache = new Map<UniverseKind, { value: UniverseResponse; expires: number }>();
@@ -294,12 +296,36 @@ export function createUniverseSource(
       ).length;
       const cachedQuotes = batches.some((b) => b?.mode === 'cached');
       if (kind === 'reit') await loadNAV(directory.items.map((item) => item.symbol));
+      let pure: PureBondValues | null = null;
+      if (kind === 'bond' && getPureBondValues) {
+        const days = quotes
+          .filter((q) => q.type === 'bond' && q.timestamp)
+          .map((q) => q.timestamp!.slice(0, 10));
+        if (days.length) {
+          try {
+            pure = await getPureBondValues(days.sort().at(-1)!);
+          } catch {
+            /* 独立估值失败不阻断完整名单和报价。 */
+          }
+        }
+      }
       result = {
         kind,
         items:
           kind === 'reit'
             ? directory.items.map((item) => ({ ...item, reit: disclosedNAV.get(item.symbol) }))
-            : directory.items,
+            : directory.items.map((item) =>
+                item.bond
+                  ? {
+                      ...item,
+                      bond: {
+                        ...item.bond,
+                        pureBondValue: pure?.values[item.symbol] ?? null,
+                        pureBondDate: pure?.values[item.symbol] != null ? pure.date : null,
+                      },
+                    }
+                  : item,
+              ),
         quotes,
         complete: directory.complete && !stale,
         mode: stale || cachedQuotes ? 'cached' : 'live',

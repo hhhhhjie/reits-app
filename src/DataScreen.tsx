@@ -32,6 +32,7 @@ import IPOPanel from './IPOPanel';
 import UniverseTable from './UniverseTable';
 import type { FilterPreferenceState } from './useFilterPreferences';
 import IncomeTable from './IncomeTable';
+import type { BondModelsState } from './useBondModels';
 
 const MODULE_ICONS = {
   bond: Coins,
@@ -94,6 +95,8 @@ export default function DataScreen({
   screening,
   onIncomeData,
   incomeRefreshKey,
+  bondModels,
+  onModelDemand,
 }: {
   quotes: Record<string, Quote>;
   watchlist: string[];
@@ -110,6 +113,8 @@ export default function DataScreen({
   screening: FilterPreferenceState;
   onIncomeData: (data: IncomeResponse) => void;
   incomeRefreshKey: number;
+  bondModels: BondModelsState;
+  onModelDemand: (value: boolean) => void;
 }) {
   const [module, setModule] = useState<DataModule>('bond');
   const [dividendMarket, setDividendMarket] = useState<'a' | 'hk'>('a');
@@ -293,6 +298,8 @@ export default function DataScreen({
         <IPOPanel />
       ) : module === 'bond' || module === 'reit' ? (
         <UniverseTable
+          bondModels={bondModels}
+          onModelDemand={onModelDemand}
           key={module}
           kind={module}
           data={universes[module]}

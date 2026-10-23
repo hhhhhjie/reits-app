@@ -27,6 +27,8 @@ import { C, compact, percent, price, quoteTime } from './theme';
 import { Button, EmptyState, IconButton, ModeBadge, Notice, Panel } from './components';
 import Chart from './Chart';
 import { formatMetric } from './UniverseTable';
+import type { BondModelsState } from './useBondModels';
+import { BOND_MODEL_EXPLANATION, bondModelValuation, modelKey } from '../shared/bond-model';
 
 export default function DetailModal({
   symbol,
@@ -39,6 +41,7 @@ export default function DetailModal({
   onToggle,
   onConversion,
   onRefresh,
+  bondModels,
 }: {
   symbol: string | null;
   quotes: Record<string, Quote>;
@@ -50,6 +53,7 @@ export default function DetailModal({
   onToggle: (symbol: string) => void;
   onConversion: (symbol: string, value: number | null) => void;
   onRefresh: () => void;
+  bondModels: BondModelsState;
 }) {
   const [extra, setExtra] = useState<Quote | null>(null);
   const [history, setHistory] = useState<HistoryResponse | null>(null);
@@ -102,6 +106,19 @@ export default function DetailModal({
   const quote = symbol ? (quotes[symbol] ?? extra) : null;
   const instrument = symbol ? (item ?? quote ?? findInstrument(symbol)) : null;
   const rising = (quote?.changePercent ?? 0) >= 0;
+  const model =
+    item?.underlying && quote?.timestamp
+      ? bondModels.records[modelKey(item.underlying, quote.timestamp.slice(0, 10))]
+      : undefined;
+  const modelValues = item?.bond
+    ? bondModelValuation(
+        item,
+        quote ?? undefined,
+        item.underlying ? quotes[item.underlying] : undefined,
+        symbol ? conversions[symbol] : undefined,
+        model,
+      )
+    : null;
   const color = rising ? C.up : C.down;
   const valuation = quote
     ? bondValuation(
@@ -134,7 +151,7 @@ export default function DetailModal({
       animationType="slide"
       presentationStyle="fullScreen"
     >
-      <View style={[s.screen, { paddingTop: inset.top }]}>
+      <View style={[s.screen, { paddingTop: inset.top }]} testID="security-detail">
         <View style={s.inner}>
           <View style={s.header}>
             <IconButton icon={ArrowLeft} label="关闭详情" onPress={onClose} />
@@ -330,6 +347,8 @@ export default function DetailModal({
                               column.key,
                               quotes,
                               symbol ? conversions[symbol] : undefined,
+                              undefined,
+                              model,
                             ),
                             column,
                           )}
@@ -338,6 +357,24 @@ export default function DetailModal({
                     ))}
                 </View>
                 <Notice text="税前YTM按报价日的合同现金流估算，含末期利息，未扣税费；已披露赎回公告或条款不完整时不计算。发行规模不是剩余规模。强赎价不代表满足触发天数，公告请以交易所披露为准。" />
+                <Text style={s.sectionTitle}>理论估值口径与参数</Text>
+                <Notice text={BOND_MODEL_EXPLANATION} />
+                <Text style={s.helper}>
+                  波动率来源：
+                  {model?.volatilitySource === 'eastmoney-daily-change' ? '东方财富日涨跌幅' : '—'}
+                  。 纯债日期：{modelValues?.pureBondDate ?? '—'}；波动率区间：
+                  {model?.volatilityStartDate ?? '—'}～{model?.volatilityEndDate ?? '—'}（
+                  {model?.returnCount ?? 0}个收益样本）；国债日期：{model?.treasuryDate ?? '—'}
+                  ；期权到期行权金额：{price(modelValues?.modelStrike)}元/百元面值。报价日期：
+                  {quote?.timestamp?.slice(0, 10) ?? '—'}。
+                </Text>
+                {!!modelValues?.reason && <Notice text={modelValues.reason} />}
+                <Button
+                  label={bondModels.busy ? '正在补充估值参数' : '重新加载估值参数'}
+                  secondary
+                  onPress={bondModels.retry}
+                  disabled={bondModels.busy}
+                />
               </View>
             )}
             {(item?.type ?? quote?.type) === 'reit' && instrument?.market === 'HK' && (

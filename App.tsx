@@ -40,6 +40,8 @@ import SearchModal from './src/SearchModal';
 import DetailModal from './src/DetailModal';
 import SettingsScreen from './src/SettingsScreen';
 import { useFilterPreferences } from './src/useFilterPreferences';
+import { useBondModels } from './src/useBondModels';
+import { validDate } from './shared/bond-model';
 
 type Tab = 'watch' | 'markets' | 'data' | 'settings';
 const TABS = [
@@ -79,6 +81,7 @@ function Home() {
   const [tab, setTab] = useState<Tab>('data');
   const [searching, setSearching] = useState(false);
   const [detail, setDetail] = useState<string | null>(null);
+  const [bondDemand, setBondDemand] = useState(false);
   const [toast, setToast] = useState('');
   const [guide, setGuide] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -115,6 +118,31 @@ function Home() {
     }
     return merged;
   }, [market.data, fullMarkets.data, incomeData]);
+  const detailedBond = fullMarkets.data.bond?.items.find((i) => i.symbol === detail);
+  const modelItems =
+    bondDemand && tab === 'data'
+      ? (fullMarkets.data.bond?.items ?? [])
+      : detailedBond
+        ? [detailedBond]
+        : [];
+  const modelRequests = pref.ready
+    ? modelItems.flatMap((item) => {
+        const q = quotes[item.symbol],
+          terms = item.bond,
+          day = q?.timestamp?.slice(0, 10);
+        return item.underlying &&
+          q?.source === 'tencent' &&
+          day &&
+          validDate(day) &&
+          terms?.redemptionPrice &&
+          !terms.redeemNoticeDate &&
+          terms.maturityDate &&
+          terms.maturityDate > day
+          ? [{ symbol: item.underlying, asOf: day }]
+          : [];
+      })
+    : [];
+  const bondModels = useBondModels(modelRequests, pref.endpoint);
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     document.title = '知行行情 · A股、港股与投资数据';
@@ -378,6 +406,8 @@ function Home() {
                   screening={screening}
                   onIncomeData={onIncomeData}
                   incomeRefreshKey={incomeRefreshKey}
+                  bondModels={bondModels}
+                  onModelDemand={setBondDemand}
                 />
               ) : tab === 'watch' || tab === 'markets' ? (
                 <QuoteList key={tab} {...common} onlyWatchlist={tab === 'watch'} />
@@ -545,6 +575,7 @@ function Home() {
         onOpen={open}
       />
       <DetailModal
+        bondModels={bondModels}
         mode={
           [...Object.values(fullMarkets.data), ...Object.values(incomeData)].find((data) =>
             data?.items.some((item) => item.symbol === detail),

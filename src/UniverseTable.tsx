@@ -28,6 +28,8 @@ import { api } from './api';
 import { Button, EmptyState, ModeBadge, Notice, Panel } from './components';
 import { C, compact, percent, price, quoteTime } from './theme';
 import FilterPanel from './FilterPanel';
+import type { BondModelsState } from './useBondModels';
+import { BOND_MODEL_EXPLANATION, BOND_MODEL_KEYS, modelKey } from '../shared/bond-model';
 import {
   FILTER_FIELDS,
   activeFilterChips,
@@ -67,6 +69,8 @@ export default function UniverseTable({
   filterSettings,
   filtersReady,
   onSettingsChange,
+  bondModels,
+  onModelDemand,
 }: {
   kind: UniverseKind;
   data?: UniverseResponse;
@@ -82,9 +86,12 @@ export default function UniverseTable({
   filterSettings: KindFilterSettings;
   filtersReady: boolean;
   onSettingsChange: (change: (previous: KindFilterSettings) => KindFilterSettings) => Promise<void>;
+  bondModels: BondModelsState;
+  onModelDemand: (value: boolean) => void;
 }) {
   const [query, setQuery] = useState('');
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const [draftModelDemand, setDraftModelDemand] = useState(false);
   const applied = filterSettings.applied;
   const activeChips = activeFilterChips(applied, kind);
   const [group, setGroup] = useState(0);
@@ -100,6 +107,20 @@ export default function UniverseTable({
   const groups = METRIC_GROUPS[kind],
     columns = groups[group].columns;
   const label = kind === 'bond' ? '可转债' : 'REITs';
+  const needsModel =
+    kind === 'bond' &&
+    data?.mode !== 'demo' &&
+    (groups[group].label === '理论估值' ||
+      draftModelDemand ||
+      BOND_MODEL_KEYS.some((k) => !!(applied.ranges[k]?.min || applied.ranges[k]?.max)));
+  useEffect(() => {
+    onModelDemand(needsModel);
+    return () => onModelDemand(false);
+  }, [needsModel, onModelDemand]);
+  const modelFor = (item: UniverseItem) =>
+    item.underlying && quotes[item.symbol]?.timestamp
+      ? bondModels.records[modelKey(item.underlying, quotes[item.symbol].timestamp!.slice(0, 10))]
+      : undefined;
   useEffect(() => {
     if (kind !== 'reit' || !data || data.mode === 'demo') return;
     let active = true,
@@ -146,6 +167,7 @@ export default function UniverseTable({
           watchlist,
           conversions,
           funds[item.symbol]?.metrics ?? item.reit,
+          modelFor(item),
         );
       })
       .sort((a, b) => {
@@ -155,6 +177,7 @@ export default function UniverseTable({
           quotes,
           conversions[a.symbol],
           funds[a.symbol]?.metrics ?? a.reit,
+          modelFor(a),
         );
         const bv = marketMetric(
           b,
@@ -162,6 +185,7 @@ export default function UniverseTable({
           quotes,
           conversions[b.symbol],
           funds[b.symbol]?.metrics ?? b.reit,
+          modelFor(b),
         );
         if (av == null) return bv == null ? a.code.localeCompare(b.code) : 1;
         if (bv == null) return -1;
@@ -171,7 +195,18 @@ export default function UniverseTable({
             : String(av).localeCompare(String(bv));
         return comparison * (descending ? -1 : 1) || a.code.localeCompare(b.code);
       });
-  }, [items, quotes, query, applied, watchlist, sort, descending, conversions, funds]);
+  }, [
+    items,
+    quotes,
+    query,
+    applied,
+    watchlist,
+    sort,
+    descending,
+    conversions,
+    funds,
+    bondModels.records,
+  ]);
   function updateFilters(change: (previous: MarketFilters) => MarketFilters) {
     if (!filtersReady) return;
     setPage(0);
@@ -220,6 +255,7 @@ export default function UniverseTable({
           watchlist,
           conversions,
           funds[item.symbol]?.metrics ?? item.reit,
+          modelFor(item),
         ),
     ).length;
   }
@@ -409,6 +445,28 @@ export default function UniverseTable({
             />
           </View>
         )}
+        {kind === 'bond' && (groups[group].label === '理论估值' || needsModel) && (
+          <View style={s.info}>
+            <Notice
+              text={`到期欧式BS估算 · 参数已检查 ${bondModels.processed}/${bondModels.total}只正股，${bondModels.available}只历史与利率可用。未完成或缺失参数的证券仍保留，启用对应筛选后暂不进入结果。`}
+            />
+            <Text style={[s.scopeText, { marginTop: 8 }]}>
+              理论价值＝纯债价值＋期权价值；偏离度正值为现价高于模型。未模拟强赎、回售、下修和提前转股。
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="重新加载估值参数"
+              disabled={bondModels.busy}
+              onPress={bondModels.retry}
+              style={{ paddingVertical: 8 }}
+            >
+              <Text style={s.link}>
+                {bondModels.busy ? '正在补充估值参数…' : '重新加载缺失参数'}
+              </Text>
+            </Pressable>
+            {help && <Notice text={BOND_MODEL_EXPLANATION} />}
+          </View>
+        )}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator
@@ -474,6 +532,7 @@ export default function UniverseTable({
                     quotes,
                     conversions[item.symbol],
                     funds[item.symbol]?.metrics ?? item.reit,
+                    modelFor(item),
                   );
                   return (
                     <Pressable
@@ -569,6 +628,12 @@ export default function UniverseTable({
         <Notice text="净值及现金分红来自独立披露记录，可能滞后或缺失。历史现金分派率不是预期收益率，须结合基金公告核对。" />
       )}
       <FilterPanel
+        onModelDemand={setDraftModelDemand}
+        modelProgress={
+          needsModel
+            ? `估值参数已检查 ${bondModels.processed}/${bondModels.total}，缺失或尚未补全的指标暂不进入对应结果。`
+            : undefined
+        }
         visible={filterPanelOpen}
         kind={kind}
         settings={filterSettings}

@@ -83,6 +83,8 @@ export interface IPOResponse {
 
 export type UniverseKind = 'bond' | 'reit';
 export interface BondMetrics {
+  pureBondValue?: number | null; // 来源纯债价值，每百元面值；并非承诺兑付金额
+  pureBondDate?: string | null;
   conversionPrice: number | null;
   stockName: string | null;
   rating: string | null;
@@ -97,6 +99,32 @@ export interface BondMetrics {
   redeemNoticeDate: string | null;
   redeemDate: string | null;
   redeemPrice: number | null;
+}
+export interface TreasuryPoint {
+  years: number;
+  rate: number;
+} // 年利率百分数
+export interface BondModelInputs {
+  symbol: string;
+  asOf: string;
+  available: boolean;
+  volatility: number | null; // 60个完整交易日日涨跌幅转对数收益率的样本标准差 × sqrt(252)，百分数
+  volatilitySource?: 'eastmoney-daily-change' | null;
+  volatilityStartDate: string | null;
+  volatilityEndDate: string | null;
+  returnCount: number;
+  treasuryCurve: TreasuryPoint[];
+  treasuryDate: string | null;
+  fetchedAt: string;
+  message: string;
+}
+export type BondModelRecords = Record<string, BondModelInputs>;
+export interface PureBondValues {
+  asOf: string;
+  date: string | null;
+  available: boolean;
+  values: Record<string, number>;
+  message: string;
 }
 export interface UniverseItem extends Instrument {
   bond?: BondMetrics;

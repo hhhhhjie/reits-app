@@ -1,5 +1,5 @@
 import { marketMetric } from './market-metrics';
-import type { Quote, ReitMetrics, UniverseItem, UniverseKind } from './types';
+import type { BondModelInputs, Quote, ReitMetrics, UniverseItem, UniverseKind } from './types';
 
 export interface RangeFilter {
   min: string;
@@ -51,6 +51,10 @@ export const FILTER_FIELDS: Record<UniverseKind, FilterField[]> = {
     field('doubleLow', '双低值', '点', '价格与估值', true),
     field('conversionValue', '转股价值', '元', '价格与估值'),
     field('conversionPrice', '转股价', '元', '价格与估值'),
+    field('pureBondValue', '纯债价值', '元/百元面值', '理论估值'),
+    field('optionValue', '期权价值', '元/百元面值', '理论估值'),
+    field('theoreticalValue', '理论价值', '元/百元面值', '理论估值'),
+    field('theoreticalDeviation', '理论偏离度', '%', '理论估值', true),
     field('ytm', '税前到期收益率估算', '%', '收益与期限', true),
     field('yearsLeft', '剩余年限', '年', '收益与期限'),
     field('issueScale', '发行规模', '亿元', '收益与期限'),
@@ -182,6 +186,7 @@ export function matchesMarketFilters(
   watchlist: string[],
   conversions: Record<string, number>,
   reit?: ReitMetrics | null,
+  model?: BondModelInputs,
 ): boolean {
   if (filters.market !== 'all' && item.market !== filters.market) return false;
   if (filters.watchOnly && !watchlist.includes(item.symbol)) return false;
@@ -203,7 +208,7 @@ export function matchesMarketFilters(
   for (const field of FILTER_FIELDS[kind]) {
     const range = filters.ranges[field.key];
     if (!range || (!range.min.trim() && !range.max.trim())) continue;
-    const raw = marketMetric(item, field.key, quotes, conversions[item.symbol], reit);
+    const raw = marketMetric(item, field.key, quotes, conversions[item.symbol], reit, model);
     if (typeof raw !== 'number' || !Number.isFinite(raw)) return false;
     const value = raw / (field.divisor ?? 1);
     for (const side of ['min', 'max'] as const) {

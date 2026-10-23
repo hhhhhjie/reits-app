@@ -24,6 +24,7 @@ import {
   type MarketFilters,
 } from '../shared/screening';
 import type { UniverseKind } from '../shared/types';
+import { BOND_MODEL_KEYS } from '../shared/bond-model';
 
 export default function FilterPanel({
   visible,
@@ -37,6 +38,8 @@ export default function FilterPanel({
   searching,
   scope,
   loadingDistributions,
+  onModelDemand,
+  modelProgress,
 }: {
   visible: boolean;
   kind: UniverseKind;
@@ -49,6 +52,8 @@ export default function FilterPanel({
   searching: boolean;
   scope: string;
   loadingDistributions: boolean;
+  onModelDemand?: (value: boolean) => void;
+  modelProgress?: string;
 }) {
   const [draft, setDraft] = useState(emptyMarketFilters);
   const [name, setName] = useState('');
@@ -107,6 +112,13 @@ export default function FilterPanel({
   const visibleRatings = allRatings
     ? CREDIT_RATINGS
     : CREDIT_RATINGS.filter((r, i) => i < 6 || r === '未评级' || draft.ratings.includes(r));
+  const draftNeedsModels = BOND_MODEL_KEYS.some(
+    (k) => !!(draft.ranges[k]?.min || draft.ranges[k]?.max),
+  );
+  useEffect(() => {
+    onModelDemand?.(visible && kind === 'bond' && draftNeedsModels);
+    return () => onModelDemand?.(false);
+  }, [visible, kind, draftNeedsModels, onModelDemand]);
   return (
     <Modal
       visible={visible}
@@ -246,6 +258,7 @@ export default function FilterPanel({
                 ))}
               </View>
             </View>
+            {kind === 'bond' && modelProgress && <Notice text={modelProgress} />}
             {FILTER_FIELDS[kind].map((field, index, all) => (
               <View key={field.key} style={{ gap: 8 }}>
                 {(index === 0 || all[index - 1].group !== field.group) && (

@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { createApp } from '../server/app';
 import { CATALOG } from '../shared/catalog';
+import { beijingDate } from '../shared/fundamentals';
 
 let server: Server;
 let base: string;
@@ -85,6 +86,24 @@ test('股息接口限制范围，离线不生成股息率或五年均值', async
     assert.deepEqual(data.quotes, []);
     assert.match(data.message, /不生成演示股息率/);
   }
+});
+
+test('估值参数批量接口校验日期与正股代码，演示模式不生成模型参数', async () => {
+  for (const query of [
+    'symbols=hk00700&asOf=2026-10-23',
+    'symbols=sh601166&asOf=2026-02-30',
+    'symbols=sh601166&asOf=2099-01-01',
+    'symbols=sh601166&asOf=2000-01-01',
+    `symbols=${Array.from({ length: 11 }, (_, i) => `sh${600100 + i}`).join(',')}&asOf=${beijingDate()}`,
+  ])
+    assert.equal((await fetch(`${base}/api/bond-model?${query}`)).status, 400);
+  const response = await fetch(`${base}/api/bond-model?symbols=sh601166&asOf=${beijingDate()}`);
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.items.length, 1);
+  assert.equal(body.items[0].available, false);
+  assert.equal(body.items[0].volatility, null);
+  assert.deepEqual(body.items[0].treasuryCurve, []);
 });
 
 test('全市场及REITs指标接口校验类型，演示样本不冒充完整名单', async () => {
