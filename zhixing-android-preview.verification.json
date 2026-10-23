@@ -1,10 +1,10 @@
 {
   "file": "zhixing-android-preview.apk",
   "package": "com.zhixing.markets",
-  "version": "1.3.0",
-  "versionCode": 4,
-  "bytes": 24042660,
-  "sha256": "281ad19b71f5b6f24b3b7876759b42d939907f972e2df8c98d667c149643b770",
+  "version": "1.4.0",
+  "versionCode": 5,
+  "bytes": 24063236,
+  "sha256": "655b88e1ce684606bfdea1fb44f508d4360545b4b38e3e3dfa9549930457efe9",
   "minSdk": 24,
   "architectures": [
     "arm64-v8a"
@@ -12,7 +12,7 @@
   "signatureVerification": "Verifies\nVerified using v1 scheme (JAR signing): false\nVerified using v2 scheme (APK Signature Scheme v2): true\nVerified using v3 scheme (APK Signature Scheme v3): false\nVerified using v3.1 scheme (APK Signature Scheme v3.1): false\nVerified using v4 scheme (APK Signature Scheme v4): false\nVerified for SourceStamp: false\nNumber of signers: 1",
   "alignment16KB": true,
   "embeddedHermesBundle": "assets/index.android.bundle",
-  "hermesBytes": 3017868,
+  "hermesBytes": 3038440,
   "permissions": "package: com.zhixing.markets\nuses-permission: name='android.permission.INTERNET'\npermission: com.zhixing.markets.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\nuses-permission: name='com.zhixing.markets.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION'",
   "deviceInstallTest": "not performed; no connected Android device"
 }
